@@ -55,11 +55,11 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** hay pruebas de construcción del árbol, herencia y serialización ida y vuelta.
 
 ### Fase 2 — Motor de cálculo
-- [ ] Promedio de cada nodo: simple o ponderado, ignorando hijos sin nota (nota "parcial actual").
-- [ ] Pesos expresados respecto a un ancestro ("vale 20% del curso") → conversión a peso relativo al padre.
-- [ ] Validaciones como avisos (no errores): pesos que no suman 100 %, nota fuera de escala, pesos contradictorios.
-- [ ] Redondeo/truncado configurable: solo en la nota final del nodo con objetivo, o también en cada nivel (opción).
-- [ ] Conversión entre escalas cuando un hijo usa una escala distinta a la del padre (lineal).
+- [x] Promedio de cada nodo: simple o ponderado, ignorando hijos sin nota (nota "parcial actual").
+- [x] Pesos expresados respecto a un ancestro ("vale 20% del curso") → conversión a peso relativo al padre.
+- [x] Validaciones como avisos (no errores): pesos que no suman 100 %, nota fuera de escala, pesos contradictorios.
+- [x] Redondeo/truncado configurable: solo en la nota final del nodo con objetivo, o también en cada nivel (opción).
+- [x] Conversión entre escalas cuando un hijo usa una escala distinta a la del padre (lineal).
 **Listo cuando:** pruebas con casos reales (ramo USM 0–100, ramo 1–7, mezcla de escalas, redondeo intermedio).
 
 ### Fase 3 — Nota objetivo y nota mínima necesaria
@@ -132,3 +132,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 1: el borrado lógico marca solo el nodo; lo que cuelga de él queda oculto sin tocarse, así restaurar lo recupera todo y sincronizar el borrado es una sola fila.
 - 2026-11-07: Fase 1: el orden entre hermanos es `position` en cada nodo. Se permiten varios nodos de nivel superior. Solo las hojas aceptan nota; una nota fuera de escala se permite (será aviso en la Fase 2).
 - 2026-11-07: Fase 1: el core no lleva reloj ni `updated_at`; el `Tree` marca los nodos cambiados (`take_dirty`) y la capa de guardado pone la fecha. El JSON ignora campos desconocidos y completa los que faltan, para convivir entre versiones.
+- 2026-11-07: Fase 2: por defecto no se redondea ningún nivel. Cada nodo puede pedirlo (`round_result`) y la configuración puede activar "redondear cada nivel" (`round_every_level`, heredable); un nodo puede excluirse. Las notas ingresadas nunca se redondean. Al redondear se limpia el ruido de punto flotante (4,45 → 4,5).
+- 2026-11-07: Fase 2: los pesos son porcentajes. Si no suman 100 se avisa y se normaliza; un hijo sin peso en un nodo ponderado cuenta 0 (con aviso). La nota parcial usa solo los pesos de los hijos que tienen nota.
+- 2026-11-07: Fase 2: conversión de escala lineal por defecto, con la opción `ByPass` (en dos tramos, la aprobación va a la aprobación: 55/100 → 4,0). La define la escala del hijo. Se convierte la nota ya redondeada del hijo.
+- 2026-11-07: Fase 2: el peso "respecto a" un ancestro (`weight_base`) se divide por la fracción que vale el padre dentro de ese ancestro. Si la base deja de ser ancestro, o algún nivel intermedio vale 0, se usa como peso respecto al padre y se avisa. Los avisos nunca impiden calcular.

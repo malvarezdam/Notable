@@ -2,13 +2,15 @@
 //!
 //! Rust puro, sin interfaz ni base de datos. Ver `PLAN.md`.
 
+mod calc;
 mod config;
 mod error;
 mod id;
 mod node;
 mod tree;
 
-pub use config::{Aggregation, GradeConfig, Rounding};
+pub use calc::{Evaluation, NodeResult, Warning};
+pub use config::{Aggregation, Conversion, GradeConfig, Rounding};
 pub use error::{ConfigError, TreeError};
 pub use id::NodeId;
 pub use node::Node;

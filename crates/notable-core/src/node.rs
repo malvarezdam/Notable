@@ -25,6 +25,15 @@ pub struct Node {
     /// Peso dentro del padre, usado solo si el padre pondera. `None` = sin peso asignado.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weight: Option<f64>,
+    /// Ancestro respecto al cual se expresa `weight` ("vale 20 % del ramo"). `None` = respecto
+    /// al padre. Si deja de ser un ancestro (por ejemplo, tras mover el nodo), se usa el padre
+    /// y el cálculo lo avisa.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight_base: Option<NodeId>,
+    /// Redondear la nota calculada de este nodo: `Some(true)` sí, `Some(false)` no, `None` =
+    /// lo que diga [`GradeConfig::round_every_level`]. No afecta a las notas ingresadas.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round_result: Option<bool>,
     /// Cómo se combinan los hijos de este nodo.
     #[serde(default)]
     pub aggregation: Aggregation,
@@ -46,6 +55,8 @@ impl Node {
             position: 0,
             grade: None,
             weight: None,
+            weight_base: None,
+            round_result: None,
             aggregation: Aggregation::default(),
             config: None,
             deleted: false,

@@ -454,13 +454,15 @@ fn json_format_is_stable() {
         position: 2,
         grade: None,
         weight: Some(20.0),
+        weight_base: None,
+        round_result: Some(true),
         aggregation: Aggregation::Weighted,
         config: Some(GradeConfig::SCALE_0_100),
         deleted: false,
     };
     assert_eq!(
         node.to_json().unwrap(),
-        r#"{"id":"6f1c1c1e-6a4b-4f7e-9a59-1d2a3b4c5d6e","parent":null,"name":"Cálculo","position":2,"weight":20.0,"aggregation":"weighted","config":{"min":0.0,"max":100.0,"pass":55.0,"decimals":0,"rounding":"round"},"deleted":false}"#
+        r#"{"id":"6f1c1c1e-6a4b-4f7e-9a59-1d2a3b4c5d6e","parent":null,"name":"Cálculo","position":2,"weight":20.0,"round_result":true,"aggregation":"weighted","config":{"min":0.0,"max":100.0,"pass":55.0,"decimals":0,"rounding":"round","round_every_level":false,"conversion":"linear"},"deleted":false}"#
     );
 }
 

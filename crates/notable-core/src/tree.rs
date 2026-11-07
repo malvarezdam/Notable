@@ -297,6 +297,29 @@ impl Tree {
         Ok(())
     }
 
+    /// Indica respecto a qué ancestro se expresa el peso del nodo ("vale 20 % del ramo").
+    /// `None`, o el propio padre, significa respecto al padre.
+    pub fn set_weight_base(&mut self, id: NodeId, base: Option<NodeId>) -> Result<(), TreeError> {
+        self.alive(id)?;
+        let parent = self.nodes[&id].parent;
+        let base = match base {
+            Some(b) if Some(b) == parent => None,
+            Some(b) if self.ancestors(id).any(|a| a == b) => Some(b),
+            Some(b) => return Err(TreeError::NotAnAncestor { node: id, base: b }),
+            None => None,
+        };
+        self.modify(id, |n| n.weight_base = base);
+        Ok(())
+    }
+
+    /// Fuerza (`Some`) o deja según la configuración (`None`) el redondeo de la nota calculada
+    /// de este nodo.
+    pub fn set_round_result(&mut self, id: NodeId, round: Option<bool>) -> Result<(), TreeError> {
+        self.alive(id)?;
+        self.modify(id, |n| n.round_result = round);
+        Ok(())
+    }
+
     // ---------------------------------------------------------------- cambios pendientes
 
     /// Entrega (y olvida) los ids de los nodos modificados desde la última llamada.
