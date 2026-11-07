@@ -138,6 +138,6 @@ Para sacar el base64 (copia el resultado al portapapeles), en PowerShell:
 ### 4.2 Publicar una versión
 1. Sube el número de versión en `app/src-tauri/tauri.conf.json` (`"version"`) y en `Cargo.toml`
    (`[workspace.package] version`), y haz commit.
-2. Crea y sube el tag: `git tag v0.2.0` y `git push origin v0.2.0`.
+2. Crea y sube el tag: `git tag v1.1.0` y `git push origin v1.1.0`.
 3. En la pestaña **Actions** se ve el avance (~20 min). Al terminar, la versión aparece en
    **Releases** con todos los archivos.

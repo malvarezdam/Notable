@@ -25,4 +25,4 @@ body:
     id: version
     attributes:
       label: Versión de Notable
-      placeholder: "0.1.0"
+      placeholder: "1.0.0"

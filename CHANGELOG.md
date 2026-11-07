@@ -6,7 +6,7 @@ Todos los cambios importantes de Notable. El formato sigue
 
 ## [Sin publicar]
 
-## [0.1.0] - 2026-11-07
+## [1.0.0] - 2026-11-07
 
 Primera versión de la app nativa en Rust (reemplaza a la versión web anterior).
 
@@ -25,5 +25,5 @@ Primera versión de la app nativa en Rust (reemplaza a la versión web anterior)
 - Tema claro/oscuro y diseño para teléfono.
 - Instalador para Windows, paquetes para Linux y APK para Android.
 
-[Sin publicar]: https://github.com/malvarezdam/Notable/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/malvarezdam/Notable/releases/tag/v0.1.0
+[Sin publicar]: https://github.com/malvarezdam/Notable/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/malvarezdam/Notable/releases/tag/v1.0.0

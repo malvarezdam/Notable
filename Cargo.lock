@@ -2408,14 +2408,14 @@ checksum = "60993920e071b0c9b66f14e2b32740a4e27ffc82854dcd72035887f336a09a28"
 
 [[package]]
 name = "notable-api"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "notable-app"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "notable-api",
  "notable-core",
@@ -2429,7 +2429,7 @@ dependencies = [
 
 [[package]]
 name = "notable-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2438,7 +2438,7 @@ dependencies = [
 
 [[package]]
 name = "notable-store"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "notable-core",
  "rusqlite",
@@ -2449,7 +2449,7 @@ dependencies = [
 
 [[package]]
 name = "notable-sync"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "notable-core",
  "notable-store",
@@ -2461,7 +2461,7 @@ dependencies = [
 
 [[package]]
 name = "notable-ui"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
