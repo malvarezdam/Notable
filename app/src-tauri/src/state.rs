@@ -236,6 +236,31 @@ impl Data {
         self.store.pending().map_or(0, |p| p.len())
     }
 
+    // ---------------------------------------------------------------- respaldo
+
+    /// Respaldo en JSON de todo (incluidos los borrados, para poder restaurarlos).
+    pub fn export_backup(&self) -> Result<String> {
+        self.store
+            .export_json()
+            .map_err(|e| format!("no se pudo crear el respaldo: {e}"))
+    }
+
+    /// Importa un respaldo **sin borrar nada**: lo del respaldo reemplaza a lo que tenga el mismo
+    /// id y lo demás se conserva. Devuelve cuántas cosas trae el respaldo.
+    pub fn import_backup(&mut self, json: &str) -> Result<usize> {
+        let count = notable_store::Backup::from_json(json)
+            .map_err(|e| format!("no se pudo importar: {e}"))?
+            .nodes
+            .len();
+        // Si el resultado no es válido, la base no cambia. Lo importado queda pendiente de
+        // sincronizar (si hay cuenta).
+        self.tree = self
+            .store
+            .import_json(json)
+            .map_err(|e| format!("no se pudo importar: {e}"))?;
+        Ok(count)
+    }
+
     fn save(&mut self) -> Result<()> {
         self.store
             .save(&mut self.tree)
@@ -861,6 +886,42 @@ mod tests {
             .map(|c| c.name)
             .collect();
         assert_eq!(names, ["B", "A"]);
+    }
+
+    #[test]
+    fn backup_export_and_import_merge() {
+        let mut pc = Data::in_memory().unwrap();
+        let course = pc.create(None, "Cálculo").unwrap();
+        let c1 = pc.create(Some(&course), "C1").unwrap();
+        pc.set_grade(&c1, Some(5.5)).unwrap();
+        let json = pc.export_backup().unwrap();
+
+        // Otro dispositivo con datos propios: importar no borra nada.
+        let mut other = Data::in_memory().unwrap();
+        other.create(None, "Historia").unwrap();
+        assert_eq!(other.import_backup(&json).unwrap(), 2);
+        let names: Vec<String> = other
+            .screen(None)
+            .unwrap()
+            .children
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
+        assert_eq!(names.len(), 2);
+        assert!(names.contains(&"Cálculo".to_owned()) && names.contains(&"Historia".to_owned()));
+        assert_eq!(
+            other
+                .screen(Some(&course))
+                .unwrap()
+                .current
+                .unwrap()
+                .display,
+            "5,5"
+        );
+
+        // Un archivo que no es un respaldo no cambia nada.
+        assert!(other.import_backup("{\"hola\": 1}").is_err());
+        assert_eq!(other.screen(None).unwrap().children.len(), 2);
     }
 
     #[test]

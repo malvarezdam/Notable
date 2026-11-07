@@ -227,9 +227,102 @@ fn sync_now(sync: State<'_, SyncHandle>) {
     sync.now();
 }
 
+// ------------------------------------------------------------------ respaldo
+
+/// Guarda un respaldo en JSON donde elija el usuario. Devuelve un mensaje, o `None` si canceló.
+#[tauri::command]
+async fn export_backup(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> state::Result<Option<String>> {
+    use std::io::Write;
+    use tauri_plugin_dialog::DialogExt;
+    use tauri_plugin_fs::{FsExt, OpenOptions};
+
+    let json = with(&state, |d| d.export_backup())?;
+    let name = format!("notable-respaldo-{}.json", today());
+    let handle = app.clone();
+    let path = blocking(move || {
+        Ok(handle
+            .dialog()
+            .file()
+            .add_filter("Respaldo de Notable", &["json"])
+            .set_file_name(name)
+            .blocking_save_file())
+    })
+    .await?;
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+    let mut file = app
+        .fs()
+        .open(path, options)
+        .map_err(|e| format!("no se pudo crear el archivo: {e}"))?;
+    file.write_all(json.as_bytes())
+        .and_then(|()| file.flush())
+        .map_err(|e| format!("no se pudo escribir el respaldo: {e}"))?;
+    Ok(Some("Respaldo guardado.".into()))
+}
+
+/// Importa un respaldo elegido por el usuario, sin borrar nada. Devuelve un mensaje, o `None` si
+/// canceló.
+#[tauri::command]
+async fn import_backup(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    sync: State<'_, SyncHandle>,
+) -> state::Result<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    use tauri_plugin_fs::FsExt;
+
+    let handle = app.clone();
+    let path = blocking(move || {
+        Ok(handle
+            .dialog()
+            .file()
+            .add_filter("Respaldo de Notable", &["json"])
+            .blocking_pick_file())
+    })
+    .await?;
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let json = app
+        .fs()
+        .read_to_string(path)
+        .map_err(|e| format!("no se pudo leer el archivo: {e}"))?;
+    let count = change(&state, &sync, |d| d.import_backup(&json))?;
+    Ok(Some(format!(
+        "Respaldo importado ({count} elementos). No se borró nada de lo que ya tenías."
+    )))
+}
+
+/// Fecha de hoy (UTC) como "2026-11-07", para el nombre del respaldo.
+fn today() -> String {
+    civil_date(notable_sync::now_ms().div_euclid(86_400_000))
+}
+
+/// Días desde 1970 → "AAAA-MM-DD" (algoritmo de Howard Hinnant).
+fn civil_date(days: i64) -> String {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -241,9 +334,34 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            screen, create, rename, delete, restore, set_grade, shift, update, account, sign_in,
-            sign_up, sign_out, sync_now
+            screen,
+            create,
+            rename,
+            delete,
+            restore,
+            set_grade,
+            shift,
+            update,
+            account,
+            sign_in,
+            sign_up,
+            sign_out,
+            sync_now,
+            export_backup,
+            import_backup
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar Notable");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::civil_date;
+
+    #[test]
+    fn civil_dates() {
+        assert_eq!(civil_date(0), "1970-01-01");
+        assert_eq!(civil_date(11_016), "2000-02-29");
+        assert_eq!(civil_date(20_764), "2026-11-07");
+    }
 }

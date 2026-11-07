@@ -19,6 +19,7 @@ tus promedios y cuánto necesitas para llegar a la nota que buscas.
 - **Reglas opcionales** (apagadas hasta que las actives): eliminar las peores notas, examen que
   reemplaza a la peor, eximición, nota mínima para aprobar, promedio por créditos.
 - **Sincronización opcional** entre dispositivos con una cuenta (correo y contraseña).
+- **Respaldo en archivo** (exportar e importar), sin necesidad de cuenta.
 - Tema claro/oscuro y diseño para teléfono.
 
 ## Instalar
@@ -50,6 +51,8 @@ formas* (el instalador no está firmado con un certificado de pago).
    las **reglas opcionales**.
 5. Opcional: pulsa **☁** para crear una cuenta y sincronizar el PC y el teléfono. Sin cuenta,
    todo se guarda solo en el dispositivo.
+6. Respaldo: en **☁ → Respaldo en archivo** puedes **exportar** todo a un archivo `.json` y
+   **importarlo** después (o en otro dispositivo). Importar agrega sin borrar lo que ya tienes.
 
 ## Compilar
 

@@ -681,3 +681,9 @@ button:disabled {
     min-height: 36px;
   }
 }
+
+.account .backup {
+  border-top: 1px solid var(--line);
+  border-bottom: none;
+  margin-top: 8px;
+}

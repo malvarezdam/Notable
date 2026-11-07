@@ -328,6 +328,20 @@ fn AccountPanel() -> impl IntoView {
         });
     };
     let sync_now = move |_| ctx.run("sync_now", NoArgs {}, |ctx| ctx.poll_account());
+    // Respaldo en archivo (sin cuenta). `None` = el usuario canceló el diálogo.
+    let backup = move |cmd: &'static str| {
+        busy.set(true);
+        note.set(None);
+        spawn_local(async move {
+            match call::<_, Option<String>>(cmd, &NoArgs {}).await {
+                Ok(message) => note.set(message),
+                Err(e) => note.set(Some(e)),
+            }
+            busy.set(false);
+            ctx.reload();
+            ctx.poll_account();
+        });
+    };
 
     let signed_in = move || ctx.account.with(|a| a.email.is_some());
     let pending = move || {
@@ -393,6 +407,21 @@ fn AccountPanel() -> impl IntoView {
                 </div>
                 <p class="hint">"Al cerrar sesión tus notas se quedan en este dispositivo."</p>
             </Show>
+            <div class="field backup">
+                <span class="label">"Respaldo en archivo"</span>
+                <span class="hint">
+                    "Guarda todo en un archivo para tenerlo a salvo o pasarlo a otro dispositivo. "
+                    "Importar agrega lo del archivo sin borrar lo que ya tienes."
+                </span>
+                <div class="buttons">
+                    <button class="chip" disabled=move || busy.get() on:click=move |_| backup("export_backup")>
+                        "Exportar respaldo"
+                    </button>
+                    <button class="chip" disabled=move || busy.get() on:click=move |_| backup("import_backup")>
+                        "Importar respaldo"
+                    </button>
+                </div>
+            </div>
             {move || note.get().map(|n| view! { <p class="note">{n}</p> })}
         </section>
     }

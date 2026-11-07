@@ -19,7 +19,9 @@ Primera versión de la app nativa en Rust (reemplaza a la versión web anterior)
 - Reglas opcionales: eliminar las peores notas, nota que reemplaza a otra, eximición, nota mínima
   para aprobar y promedio por créditos.
 - Avisos (pesos que no suman 100 %, notas fuera de escala, etc.) sin bloquear el cálculo.
-- Guardado local en SQLite al instante; respaldo e importación en JSON.
+- Guardado local en SQLite al instante.
+- Respaldo en archivo: **Exportar** e **Importar** (JSON) desde el panel ☁, sin cuenta; importar
+  agrega sin borrar lo que ya hay.
 - Cuenta opcional y sincronización entre dispositivos con Supabase (gana el cambio más reciente,
   funciona sin conexión).
 - Tema claro/oscuro y diseño para teléfono.
