@@ -44,7 +44,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 ### Fase 0 — Preparación del repositorio
 - [x] `git init`, `.gitignore` (target/, node_modules/, dist/, gen/ de Tauri), licencia MIT, README corto.
 - [x] Cargo workspace con `crates/notable-core` vacío y compilando.
-- [ ] Crear repo en GitHub con `gh` (lo confirma el usuario) y primer push. **Pospuesto:** el usuario prefiere terminar el proyecto en local y subirlo después.
+- [x] Repo en GitHub y primer push: se usó el repo existente `malvarezdam/Notable` (su versión web anterior se reemplazó, con respaldo local).
 **Listo cuando:** `cargo test` pasa en el workspace y el repo existe en GitHub.
 
 ### Fase 1 — Modelo de datos (`notable-core`)
@@ -165,3 +165,4 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 9: clave de firma RSA 4096 (100 años) en `C:\Users\Victus\.android-keys\` con contraseña aleatoria en `notable-keystore.properties`, fuera del repo. Gradle la lee de `NOTABLE_KEYSTORE_PROPERTIES` o de esa ruta; si no existe, el release sale sin firmar.
 - 2026-11-07: Fase 9: la app se dibuja de borde a borde (Android 15+), así que `MainActivity` aplica como margen las barras del sistema, el recorte de cámara y el teclado (más confiable que `env(safe-area-inset-*)` en el WebView). En pantallas táctiles los botones son de 40 px y siempre visibles.
 - 2026-11-07: Fase 9: se compilan APK separados por ABI: `arm64` (teléfonos) y `x86_64` (emulador). En Windows, `tauri android build` necesita el "Modo para desarrolladores" activado (crea enlaces simbólicos). Sin cable, el APK se pasa al teléfono por Drive/WhatsApp/correo (ver `docs/CONFIGURACION.md` 3.1).
+- 2026-11-07: Repo: `malvarezdam/Notable` ya existía con la versión web 1.0 (1 commit, release `v1.0`, GitHub Pages). A pedido del usuario se reemplazó por completo con push forzado; respaldo espejo en `C:\Users\Victus\Desktop\Notable-respaldo-v1.git`.
