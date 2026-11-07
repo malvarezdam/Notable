@@ -12,9 +12,9 @@ source: <https://github.com/malvarezdam/Notable> (licencia MIT).
 - No subir la versión ni crear tags/releases sin que el usuario lo pida. Para publicar, ver
   `docs/CONFIGURACION.md` §4.2 (versión en `Cargo.toml` y `app/src-tauri/tauri.conf.json`, luego tag).
 - Pendiente del lado del usuario: probar la sincronización con una cuenta real (PC ↔ teléfono),
-  instalar el APK en su teléfono. Ajustes del repo sin tocar (decide el usuario): GitHub Pages aún
-  sirve la versión web vieja, el secreto `GOOGLE_CLIENT_ID` sobra, y el reporte privado de
-  vulnerabilidades (al que apunta SECURITY.md) no está activado.
+  instalar el APK en su teléfono.
+- Repo de GitHub configurado (2026-11-07): GitHub Pages y Wiki desactivados, reporte privado de
+  vulnerabilidades y Dependabot (alertas y arreglos) activados, secretos solo los de firma de Android.
 
 ## Reglas
 
