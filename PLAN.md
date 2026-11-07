@@ -48,10 +48,10 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** `cargo test` pasa en el workspace y el repo existe en GitHub.
 
 ### Fase 1 — Modelo de datos (`notable-core`)
-- [ ] Tipos: `Node`, `NodeId` (UUID), `GradeConfig` (escala, aprobación, decimales, `Rounding::{Round, Truncate}`), `Aggregation::{Simple, Weighted}`.
-- [ ] Árbol en memoria con operaciones: crear, mover, renombrar, borrar (borrado lógico), editar nota.
-- [ ] Herencia de `GradeConfig` (un nodo usa la de su ancestro más cercano que la defina).
-- [ ] Serialización serde (JSON) de cada nodo por separado (sirve para SQLite y sync).
+- [x] Tipos: `Node`, `NodeId` (UUID), `GradeConfig` (escala, aprobación, decimales, `Rounding::{Round, Truncate}`), `Aggregation::{Simple, Weighted}`.
+- [x] Árbol en memoria con operaciones: crear, mover, renombrar, borrar (borrado lógico), editar nota.
+- [x] Herencia de `GradeConfig` (un nodo usa la de su ancestro más cercano que la defina).
+- [x] Serialización serde (JSON) de cada nodo por separado (sirve para SQLite y sync).
 **Listo cuando:** hay pruebas de construcción del árbol, herencia y serialización ida y vuelta.
 
 ### Fase 2 — Motor de cálculo
@@ -128,3 +128,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Promedio simple por defecto + botón "Ponderar". Todas las reglas extra son opcionales y configurables.
 - 2026-11-07: El esquema remoto es genérico (`items` con `data jsonb`), así los cambios del modelo no obligan a tocar Supabase.
 - 2026-11-07: Fase 0: workspace con edición 2024 y `resolver = "3"`; `Cargo.lock` se versiona (habrá binario). Rama `main`. Repo en GitHub (`malvarezdam/notable`) pospuesto a pedido del usuario hasta terminar en local.
+- 2026-11-07: Fase 1: la `GradeConfig` se hereda completa (no campo por campo); si nadie la define se usa 1,0–7,0 / aprueba 4,0 / 1 decimal / aproximar. Hay atajos `SCALE_1_7` y `SCALE_0_100`.
+- 2026-11-07: Fase 1: el borrado lógico marca solo el nodo; lo que cuelga de él queda oculto sin tocarse, así restaurar lo recupera todo y sincronizar el borrado es una sola fila.
+- 2026-11-07: Fase 1: el orden entre hermanos es `position` en cada nodo. Se permiten varios nodos de nivel superior. Solo las hojas aceptan nota; una nota fuera de escala se permite (será aviso en la Fase 2).
+- 2026-11-07: Fase 1: el core no lleva reloj ni `updated_at`; el `Tree` marca los nodos cambiados (`take_dirty`) y la capa de guardado pone la fecha. El JSON ignora campos desconocidos y completa los que faltan, para convivir entre versiones.
