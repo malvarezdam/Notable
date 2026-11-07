@@ -18,7 +18,7 @@ jobs:
     name: Formato, clippy y pruebas
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Dependencias de Tauri (Linux)
         run: |

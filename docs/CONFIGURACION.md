@@ -115,6 +115,29 @@ repositorio. Gradle la lee de esa carpeta, o del archivo que diga la variable de
 ---
 
 ## Parte 4 — Publicar (Fase 10)
-Claude prepara los workflows. Tú solo:
-- Guardas la clave de firma de Android (la genera Claude en la Fase 9) en un lugar seguro **fuera** del repo.
-- La cargas en GitHub → repo → **Settings → Secrets and variables → Actions** cuando Claude te indique los nombres.
+Los workflows ya están en `.github/workflows/`:
+- `ci.yml`: formato, clippy y pruebas en cada push a `main`.
+- `release.yml`: al subir un tag `v*` arma Windows (`.exe`/`.msi`), Linux (`.AppImage`/`.deb`) y
+  Android (`.apk`) y los publica en **Releases**.
+
+### 4.1 Secretos para firmar el APK
+En GitHub → repo `Notable` → **Settings → Secrets and variables → Actions → New repository
+secret**, crea estos tres (sin ellos el APK sale sin firmar y no se puede instalar):
+
+| Nombre | Valor |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | el archivo `C:\Users\Victus\.android-keys\notable-release.jks` en base64 (ver abajo) |
+| `ANDROID_KEYSTORE_PASSWORD` | el valor de `storePassword` en `notable-keystore.properties` |
+| `ANDROID_KEY_ALIAS` | `notable` |
+
+Para sacar el base64 (copia el resultado al portapapeles), en PowerShell:
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\.android-keys\notable-release.jks")) | Set-Clipboard
+```
+
+### 4.2 Publicar una versión
+1. Sube el número de versión en `app/src-tauri/tauri.conf.json` (`"version"`) y en `Cargo.toml`
+   (`[workspace.package] version`), y haz commit.
+2. Crea y sube el tag: `git tag v0.2.0` y `git push origin v0.2.0`.
+3. En la pestaña **Actions** se ve el avance (~20 min). Al terminar, la versión aparece en
+   **Releases** con todos los archivos.
