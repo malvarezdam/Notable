@@ -646,3 +646,38 @@ button:disabled {
     display: none;
   }
 }
+
+/* Pantallas táctiles (teléfono): botones siempre visibles y fáciles de tocar. */
+@media (hover: none) {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input,
+  select {
+    touch-action: manipulation;
+  }
+
+  .icon {
+    opacity: 0.85;
+    width: 40px;
+    height: 40px;
+  }
+
+  .row .name {
+    padding: 10px;
+  }
+
+  input.grade-input,
+  input.number,
+  input.text,
+  select {
+    min-height: 40px;
+    font-size: 16px;
+  }
+
+  .chip {
+    min-height: 36px;
+  }
+}

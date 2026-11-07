@@ -88,8 +88,29 @@ Si dice que no has iniciado sesión: `gh auth login` y sigue las instrucciones (
    - `JAVA_HOME` = `C:\Program Files\Android\Android Studio\jbr`
 4. Cierra y vuelve a abrir la terminal (y Claude) para que tomen las variables.
 5. Los objetivos de Rust para Android los instala Claude en la Fase 9.
-6. En tu teléfono: **Ajustes → Acerca del teléfono** → toca 7 veces "Número de compilación" →
-   en **Opciones de desarrollador** activa **Depuración USB**.
+6. (Solo si vas a conectar el teléfono por cable) En tu teléfono: **Ajustes → Acerca del
+   teléfono** → toca 7 veces "Número de compilación" → en **Opciones de desarrollador** activa
+   **Depuración USB**.
+
+### 3.1 Instalar el APK sin cable
+El APK firmado queda en
+`app/src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk`
+(la mayoría de los teléfonos son arm64).
+1. Pásalo al teléfono como te acomode: Google Drive, WhatsApp a ti mismo, correo o pendrive.
+2. En el teléfono, ábrelo. Android pedirá permitir "instalar apps desconocidas" para la app desde
+   la que lo abres (Drive, WhatsApp…): permítelo solo para eso.
+3. Para actualizar, instala el APK nuevo encima: se conservan tus notas.
+
+### 3.2 La clave de firma (¡respáldala!)
+Claude la generó en `C:\Users\Victus\.android-keys\`:
+- `notable-release.jks`: la clave.
+- `notable-keystore.properties`: su contraseña y alias.
+
+**Respalda esa carpeta completa** (gestor de contraseñas, pendrive, nube personal). Android solo
+acepta actualizaciones firmadas con la misma clave: si se pierde, habría que desinstalar la app
+(perdiendo lo que no esté sincronizado) para instalar una versión nueva. Nunca la subas al
+repositorio. Gradle la lee de esa carpeta, o del archivo que diga la variable de entorno
+`NOTABLE_KEYSTORE_PROPERTIES` (así la usará el workflow de la Fase 10).
 
 ---
 

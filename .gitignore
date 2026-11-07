@@ -6,8 +6,8 @@
 node_modules/
 dist/
 
-# Tauri (generado)
-app/src-tauri/gen/
+# Tauri (generado). `gen/android` sí se versiona: es el proyecto Android (la firma se lee
+# desde fuera del repo) y sus propios .gitignore excluyen lo compilado.
 **/gen/schemas/
 
 # Secretos y configuración local (nunca al repo)
@@ -17,6 +17,7 @@ app/src-tauri/gen/
 *.keystore
 *.jks
 keystore.properties
+*keystore.properties
 
 # Editores / SO
 .vscode/

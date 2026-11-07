@@ -111,9 +111,9 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** cambios hechos en PC aparecen en otra instalación y viceversa, también tras trabajar sin conexión. **Falta:** probarlo con una cuenta real (lo hace el usuario: crear cuenta en la app y confirmar el correo).
 
 ### Fase 9 — Android
-- [ ] Requiere herramientas Android del usuario (ver `docs/CONFIGURACION.md`, parte 3).
-- [ ] `tauri android init`, ajustar UI táctil, compilar APK firmado (clave guardada fuera del repo).
-**Listo cuando:** el APK se instala en el teléfono del usuario y sincroniza con el PC.
+- [x] Requiere herramientas Android del usuario (ver `docs/CONFIGURACION.md`, parte 3).
+- [x] `tauri android init`, ajustar UI táctil, compilar APK firmado (clave guardada fuera del repo).
+**Listo cuando:** el APK se instala en el teléfono del usuario y sincroniza con el PC. **Probado en el emulador** (Android 37): abre, calcula, guarda al cerrar y se conecta a Supabase por HTTPS. **Falta:** instalarlo en el teléfono y probar la sincronización con una cuenta real.
 
 ### Fase 10 — CI y publicación
 - [ ] GitHub Actions: `cargo test` + clippy en cada push.
@@ -161,3 +161,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 8: orden bajar → aplicar → subir. Al bajar se retrocede 60 s desde el último `server_updated_at` visto (por transacciones que terminan tarde) y se pagina por posición (un lote comparte la misma hora). Al aplicar gana el `updated_at` mayor; si el resultado no es un árbol válido no se toca nada. Lo subido se marca limpio solo si no cambió mientras subía.
 - 2026-11-07: Fase 8: la sesión (tokens) y el cursor van en la tabla local `meta` (migración 2). Al entrar con una cuenta distinta de la última sincronizada, todo lo local queda pendiente y se fusiona con la cuenta; cerrar sesión no borra nada. Si el refresh falla, se olvida la sesión y se pide volver a entrar.
 - 2026-11-07: Fase 8: un hilo sincroniza al abrir, cada 3 min, 4 s después de cada cambio (juntando varios), al pulsar "Sincronizar ahora" y al volver la conexión (evento `online`); sin conexión reintenta cada 30 s. La red nunca se usa con el candado del estado tomado. La interfaz consulta el estado cada 4 s y recarga la pantalla si llegaron cambios de otro dispositivo.
+- 2026-11-07: Fase 9: `app/src-tauri/gen/android` se versiona (antes estaba ignorado) porque lleva cambios propios: la firma en `app/build.gradle.kts` y los márgenes del sistema en `MainActivity.kt`. Lo compilado lo excluyen sus `.gitignore`.
+- 2026-11-07: Fase 9: clave de firma RSA 4096 (100 años) en `C:\Users\Victus\.android-keys\` con contraseña aleatoria en `notable-keystore.properties`, fuera del repo. Gradle la lee de `NOTABLE_KEYSTORE_PROPERTIES` o de esa ruta; si no existe, el release sale sin firmar.
+- 2026-11-07: Fase 9: la app se dibuja de borde a borde (Android 15+), así que `MainActivity` aplica como margen las barras del sistema, el recorte de cámara y el teclado (más confiable que `env(safe-area-inset-*)` en el WebView). En pantallas táctiles los botones son de 40 px y siempre visibles.
+- 2026-11-07: Fase 9: se compilan APK separados por ABI: `arm64` (teléfonos) y `x86_64` (emulador). En Windows, `tauri android build` necesita el "Modo para desarrolladores" activado (crea enlaces simbólicos). Sin cable, el APK se pasa al teléfono por Drive/WhatsApp/correo (ver `docs/CONFIGURACION.md` 3.1).
