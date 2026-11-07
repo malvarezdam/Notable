@@ -120,7 +120,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - [x] Workflow de release (al crear un tag `v*`): instalador Windows, AppImage/deb Linux, APK Android → GitHub Releases.
 - [x] Secretos del workflow (clave de firma Android) como GitHub Secrets.
 - [x] README con capturas, instalación y cómo usar.
-**Listo cuando:** crear un tag publica una release descargable.
+**Listo cuando:** crear un tag publica una release descargable. **Hecho:** `v1.0.0` publicada el 2026-11-07 (Windows .exe/.msi, Linux .AppImage/.deb, APK arm64 y arm firmados con la clave del usuario).
 
 ---
 

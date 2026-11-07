@@ -29,7 +29,7 @@ Descarga la última versión desde [Releases](https://github.com/malvarezdam/Not
 |---|---|
 | Windows | `Notable_…_x64-setup.exe` (o el `.msi`) |
 | Linux | `.AppImage` (dale permiso de ejecución) o `.deb` |
-| Android | `Notable-…-android-arm64.apk` (casi todos los teléfonos; `armv7` para los muy antiguos) |
+| Android | `Notable-…-android-arm64.apk` (casi todos los teléfonos; `…-android-arm.apk` para los muy antiguos) |
 
 **Android:** abre el `.apk` en el teléfono y permite "instalar apps desconocidas" para la app
 desde la que lo abriste (navegador, Drive…). Para actualizar, instala el nuevo encima: tus notas
