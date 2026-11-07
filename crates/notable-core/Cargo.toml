@@ -1,0 +1,9 @@
+[package]
+name = "notable-core"
+description = "Modelo de datos y motor de cálculo de Notable (sin IO)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]

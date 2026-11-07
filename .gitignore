@@ -1,0 +1,28 @@
+# Rust
+/target/
+**/target/
+
+# Node / frontend
+node_modules/
+dist/
+
+# Tauri (generado)
+app/src-tauri/gen/
+**/gen/schemas/
+
+# Secretos y configuración local (nunca al repo)
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+keystore.properties
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code (configuración local)
+.claude/settings.local.json
