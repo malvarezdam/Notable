@@ -44,7 +44,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 ### Fase 0 — Preparación del repositorio
 - [x] `git init`, `.gitignore` (target/, node_modules/, dist/, gen/ de Tauri), licencia MIT, README corto.
 - [x] Cargo workspace con `crates/notable-core` vacío y compilando.
-- [ ] Crear repo en GitHub con `gh` (lo confirma el usuario) y primer push.
+- [ ] Crear repo en GitHub con `gh` (lo confirma el usuario) y primer push. **Pospuesto:** el usuario prefiere terminar el proyecto en local y subirlo después.
 **Listo cuando:** `cargo test` pasa en el workspace y el repo existe en GitHub.
 
 ### Fase 1 — Modelo de datos (`notable-core`)
@@ -127,4 +127,4 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Local primero (SQLite) + sincronización opcional con Supabase gratis; Tauri 2 + Leptos; distribución por GitHub Releases; iOS fuera por ahora.
 - 2026-11-07: Promedio simple por defecto + botón "Ponderar". Todas las reglas extra son opcionales y configurables.
 - 2026-11-07: El esquema remoto es genérico (`items` con `data jsonb`), así los cambios del modelo no obligan a tocar Supabase.
-- 2026-11-07: Fase 0: workspace con edición 2024 y `resolver = "3"`; `Cargo.lock` se versiona (habrá binario). Repo: `malvarezdam/notable`, rama `main`.
+- 2026-11-07: Fase 0: workspace con edición 2024 y `resolver = "3"`; `Cargo.lock` se versiona (habrá binario). Rama `main`. Repo en GitHub (`malvarezdam/notable`) pospuesto a pedido del usuario hasta terminar en local.
