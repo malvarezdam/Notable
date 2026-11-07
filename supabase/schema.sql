@@ -43,6 +43,11 @@ create trigger items_before_write
 -- Seguridad: cada usuario solo ve y modifica sus propias filas.
 alter table public.items enable row level security;
 
+-- Acceso por la API solo con sesión iniciada (el rol anónimo no puede tocar la tabla).
+-- Hace falta si el proyecto tiene desactivado "Automatically expose new tables".
+revoke all on table public.items from anon;
+grant select, insert, update, delete on table public.items to authenticated;
+
 drop policy if exists "items_select_own" on public.items;
 create policy "items_select_own" on public.items
     for select to authenticated
