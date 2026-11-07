@@ -1,0 +1,49 @@
+# Pruebas y revisión en cada push y pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Formato, clippy y pruebas
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de Tauri (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      # La app incrusta la interfaz compilada (`app/dist`); para revisar y probar basta una vacía.
+      - name: Carpeta de la interfaz
+        run: mkdir -p app/dist && echo '<!doctype html>' > app/dist/index.html
+
+      - name: Formato
+        run: cargo fmt --all --check
+
+      - name: Clippy (app y bibliotecas)
+        run: cargo clippy --workspace --exclude notable-ui --all-targets -- -D warnings
+
+      - name: Clippy (interfaz, WebAssembly)
+        run: cargo clippy -p notable-ui --target wasm32-unknown-unknown -- -D warnings
+
+      - name: Pruebas
+        run: cargo test --workspace --exclude notable-ui

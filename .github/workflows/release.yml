@@ -1,0 +1,160 @@
+# Publicar una versión: crear y subir un tag `v*` (por ejemplo `git tag v0.1.0 && git push origin v0.1.0`).
+# Arma el instalador de Windows, los paquetes de Linux y el APK de Android, y los deja en
+# GitHub Releases. La release se crea como borrador y se publica cuando todo terminó bien.
+#
+# Secretos necesarios para firmar el APK (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64   el archivo .jks en base64
+#   ANDROID_KEYSTORE_PASSWORD la contraseña (storePassword y keyPassword)
+#   ANDROID_KEY_ALIAS         el alias de la clave (notable)
+# Sin ellos el APK sale sin firmar (no se puede instalar), pero lo demás se publica igual.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  TAURI_CLI_VERSION: "2.12.4"
+  TRUNK_VERSION: "0.21.14"
+
+jobs:
+  create:
+    name: Crear release (borrador)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Crear borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --title "Notable $GITHUB_REF_NAME" \
+            --notes "Descargas: instalador de Windows (.exe o .msi), Linux (.AppImage o .deb) y Android (.apk). Ver el README para instalar."
+
+  desktop:
+    name: Escritorio (${{ matrix.name }})
+    needs: create
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+          - name: Linux
+            os: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias de Tauri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Herramientas (Trunk y Tauri CLI)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@${{ env.TRUNK_VERSION }},tauri-cli@${{ env.TAURI_CLI_VERSION }}
+
+      - name: Compilar
+        working-directory: app/src-tauri
+        run: cargo tauri build
+
+      - name: Subir a la release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(target/release/bundle/nsis/*.exe target/release/bundle/msi/*.msi \
+                 target/release/bundle/appimage/*.AppImage target/release/bundle/deb/*.deb)
+          echo "Archivos: ${files[*]}"
+          [ ${#files[@]} -gt 0 ] || { echo "No se generó nada"; exit 1; }
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+
+  android:
+    name: Android
+    needs: create
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown,aarch64-linux-android,armv7-linux-androideabi
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Herramientas (Trunk y Tauri CLI)
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk@${{ env.TRUNK_VERSION }},tauri-cli@${{ env.TAURI_CLI_VERSION }}
+
+      - name: Clave de firma
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::Sin secretos de firma: el APK saldrá sin firmar."
+            exit 0
+          fi
+          dir="$RUNNER_TEMP/keys"
+          mkdir -p "$dir"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$dir/notable-release.jks"
+          {
+            echo "storeFile=$dir/notable-release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEYSTORE_PASSWORD"
+          } > "$dir/notable-keystore.properties"
+          echo "NOTABLE_KEYSTORE_PROPERTIES=$dir/notable-keystore.properties" >> "$GITHUB_ENV"
+
+      - name: Compilar APK
+        working-directory: app/src-tauri
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          cargo tauri android build --apk --target aarch64 --target armv7 --split-per-abi
+
+      - name: Subir a la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out=app/src-tauri/gen/android/app/build/outputs/apk
+          version="${GITHUB_REF_NAME#v}"
+          ls -R "$out"
+          # Una carpeta por ABI (arm64, arm…); el nombre del APK cambia si no se firmó.
+          for dir in "$out"/*/release; do
+            abi=$(basename "$(dirname "$dir")")
+            for apk in "$dir"/*.apk; do
+              cp "$apk" "Notable-$version-android-$abi.apk"
+            done
+          done
+          gh release upload "$GITHUB_REF_NAME" Notable-*.apk --clobber
+
+  publish:
+    name: Publicar
+    needs: [desktop, android]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publicar la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest
