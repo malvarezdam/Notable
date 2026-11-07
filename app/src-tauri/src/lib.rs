@@ -4,7 +4,7 @@ mod state;
 
 use std::sync::Mutex;
 
-use notable_api::Screen;
+use notable_api::{Change, Screen};
 use tauri::{Manager, State};
 
 use state::Data;
@@ -58,6 +58,16 @@ fn set_grade(id: String, grade: Option<f64>, state: State<'_, AppState>) -> stat
     with(&state, |d| d.set_grade(&id, grade))
 }
 
+#[tauri::command]
+fn shift(id: String, delta: i32, state: State<'_, AppState>) -> state::Result<()> {
+    with(&state, |d| d.shift(&id, delta))
+}
+
+#[tauri::command]
+fn update(id: String, change: Change, state: State<'_, AppState>) -> state::Result<()> {
+    with(&state, |d| d.update(&id, change))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -69,7 +79,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            screen, create, rename, delete, restore, set_grade
+            screen, create, rename, delete, restore, set_grade, shift, update
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar Notable");

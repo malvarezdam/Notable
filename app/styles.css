@@ -1,3 +1,4 @@
+/* Colores. El tema sigue al sistema, salvo que se elija uno (atributo data-theme). */
 :root {
   --bg: #f7f7f5;
   --surface: #ffffff;
@@ -5,23 +6,45 @@
   --muted: #6e6e73;
   --line: #e3e3e0;
   --accent: #2f6fdb;
+  --accent-soft: #e6eefc;
   --pass: #1f8a4c;
   --fail: #c4352b;
+  --warn: #9a6200;
+  --warn-soft: #fdf3e1;
   --radius: 10px;
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #18181a;
     --surface: #222225;
     --text: #ececee;
     --muted: #9a9aa0;
     --line: #333337;
     --accent: #6c9cf0;
+    --accent-soft: #24324d;
     --pass: #4cc283;
     --fail: #f0766c;
+    --warn: #e8b45a;
+    --warn-soft: #3a2f1c;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #18181a;
+  --surface: #222225;
+  --text: #ececee;
+  --muted: #9a9aa0;
+  --line: #333337;
+  --accent: #6c9cf0;
+  --accent-soft: #24324d;
+  --pass: #4cc283;
+  --fail: #f0766c;
+  --warn: #e8b45a;
+  --warn-soft: #3a2f1c;
+  color-scheme: dark;
 }
 
 * {
@@ -36,9 +59,17 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   color: inherit;
+}
+
+select {
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
 }
 
 main {
@@ -47,13 +78,20 @@ main {
   padding: 16px;
 }
 
+header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 /* Migas de pan */
 .crumbs {
+  flex: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  margin-bottom: 12px;
   color: var(--muted);
 }
 
@@ -85,7 +123,10 @@ main {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 16px 20px;
-  margin-bottom: 16px;
+}
+
+.summary .title {
+  min-width: 0;
 }
 
 .summary h1 {
@@ -103,6 +144,7 @@ main {
   font-size: 34px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .pass {
@@ -111,6 +153,164 @@ main {
 
 .fail {
   color: var(--fail);
+}
+
+/* Barra de acciones */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+}
+
+.chip.on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip.static {
+  cursor: default;
+}
+
+/* Objetivo */
+.goal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+
+.goal strong {
+  font-size: 18px;
+}
+
+.goal.met {
+  border-color: var(--pass);
+  background: color-mix(in srgb, var(--pass) 12%, var(--surface));
+}
+
+.goal.unreachable {
+  border-color: var(--fail);
+  background: color-mix(in srgb, var(--fail) 12%, var(--surface));
+}
+
+.warning {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 14px;
+}
+
+/* Panel de ajustes */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.field .label {
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.scale,
+.sub {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 0 10px 12px;
+  border-left: 2px solid var(--line);
+  margin: 4px 0 4px 4px;
+}
+
+.presets {
+  display: flex;
+  gap: 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.grid label,
+.sub label:not(.option) {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.sub label:not(.option) {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.rules {
+  padding-top: 10px;
+}
+
+.rules summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.rule {
+  padding: 8px 0;
 }
 
 /* Lista */
@@ -136,9 +336,26 @@ main {
   border-bottom: none;
 }
 
-.row .name {
+.row.dimmed .name,
+.row.dimmed .grade-input,
+.row.dimmed .grade {
+  opacity: 0.55;
+}
+
+.row .main,
+.row .editing {
   flex: 1;
   min-width: 0;
+}
+
+.row .editing {
+  display: flex;
+  gap: 4px;
+}
+
+.row .name {
+  display: block;
+  width: 100%;
   text-align: left;
   background: none;
   border: none;
@@ -158,6 +375,49 @@ main {
   margin-left: 6px;
 }
 
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 10px 6px;
+  font-size: 12px;
+}
+
+.meta span {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.meta .effect {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.meta .warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.meta .note {
+  background: none;
+  padding: 1px 0;
+}
+
+.weight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.weight select.base {
+  max-width: 130px;
+  font-size: 13px;
+}
+
 .grade {
   min-width: 56px;
   text-align: right;
@@ -170,7 +430,8 @@ main {
   color: var(--muted);
 }
 
-input.grade-input {
+input.grade-input,
+input.number {
   width: 72px;
   text-align: right;
   padding: 6px 8px;
@@ -180,8 +441,21 @@ input.grade-input {
   font-variant-numeric: tabular-nums;
 }
 
-input.grade-input.invalid {
+input.number.pct {
+  width: 58px;
+}
+
+.panel input.number {
+  width: 110px;
+  text-align: left;
+}
+
+input.invalid {
   border-color: var(--fail);
+}
+
+.actions {
+  display: flex;
 }
 
 .icon {
@@ -196,8 +470,13 @@ input.grade-input.invalid {
 }
 
 .icon:hover {
-  background: var(--bg);
+  background: var(--line);
   opacity: 1;
+}
+
+.icon.theme {
+  opacity: 0.8;
+  font-size: 17px;
 }
 
 input.text {
@@ -231,7 +510,7 @@ input.text {
   cursor: pointer;
 }
 
-/* Avisos */
+/* Avisos flotantes */
 .toast {
   position: fixed;
   left: 50%;
@@ -263,4 +542,49 @@ input.text {
 
 .toast.error button {
   color: #fff;
+}
+
+/* Teléfono */
+@media (max-width: 520px) {
+  main {
+    padding: 12px;
+  }
+
+  .summary {
+    padding: 12px 14px;
+  }
+
+  .summary h1 {
+    font-size: 19px;
+  }
+
+  .summary .big {
+    font-size: 28px;
+  }
+
+  /* La fila se parte en dos: nombre arriba; peso, nota y acciones abajo. */
+  .row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .row .main,
+  .row .editing {
+    flex-basis: 100%;
+  }
+
+  .row .weight {
+    margin-left: 10px;
+  }
+
+  .row .grade-input,
+  .row .grade {
+    margin-left: auto;
+  }
+
+  .icon,
+  .chip,
+  input.grade-input {
+    min-height: 36px;
+  }
 }

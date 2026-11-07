@@ -6,7 +6,10 @@ use std::time::Duration;
 use leptos::ev::KeyboardEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use notable_api::{Scale, Screen, format_grade, parse_grade};
+use notable_api::{
+    Change, Details, ExemptionSettings, GoalKind, MinimumSettings, Mode, ReplaceSettings,
+    RulesSettings, Scale, ScaleSettings, Screen, format_grade, format_number, parse_grade,
+};
 use serde::Serialize;
 use serde::de::{DeserializeOwned, IgnoredAny};
 use wasm_bindgen::JsCast;
@@ -56,6 +59,18 @@ struct GradeArgs {
     grade: Option<f64>,
 }
 
+#[derive(Serialize)]
+struct ShiftArgs {
+    id: String,
+    delta: i32,
+}
+
+#[derive(Serialize)]
+struct UpdateArgs {
+    id: String,
+    change: Change,
+}
+
 // ------------------------------------------------------------------ estado
 
 #[derive(Clone, PartialEq)]
@@ -71,6 +86,8 @@ struct Ctx {
     view: RwSignal<Option<String>>,
     screen: RwSignal<Screen>,
     toast: RwSignal<Option<Toast>>,
+    /// Panel de ajustes del nodo actual abierto.
+    settings: RwSignal<bool>,
 }
 
 impl Ctx {
@@ -93,6 +110,9 @@ impl Ctx {
     }
 
     fn go(self, view: Option<String>) {
+        if view != self.view.get_untracked() {
+            self.settings.set(false);
+        }
         self.view.set(view);
         self.reload();
     }
@@ -116,6 +136,45 @@ impl Ctx {
             self.reload();
         });
     }
+
+    /// Cambia un ajuste de un nodo.
+    fn update(self, id: String, change: Change) {
+        self.run("update", UpdateArgs { id, change }, |_| {});
+    }
+
+    /// Cambia un ajuste del nodo actual.
+    fn update_current(self, change: Change) {
+        if let Some(id) = self.current_id() {
+            self.update(id, change);
+        }
+    }
+
+    fn current_id(self) -> Option<String> {
+        self.screen
+            .with_untracked(|s| s.current.as_ref().map(|c| c.id.clone()))
+    }
+}
+
+// ------------------------------------------------------------------ tema
+
+const THEMES: [(&str, &str); 3] = [
+    ("", "Tema: sistema"),
+    ("light", "Tema: claro"),
+    ("dark", "Tema: oscuro"),
+];
+
+fn storage() -> Option<web_sys::Storage> {
+    window().local_storage().ok().flatten()
+}
+
+fn apply_theme(theme: &str) {
+    if let Some(root) = document().document_element() {
+        let _ = if theme.is_empty() {
+            root.remove_attribute("data-theme")
+        } else {
+            root.set_attribute("data-theme", theme)
+        };
+    }
 }
 
 // ------------------------------------------------------------------ vistas
@@ -131,18 +190,53 @@ fn App() -> impl IntoView {
         view: RwSignal::new(None),
         screen: RwSignal::new(Screen::default()),
         toast: RwSignal::new(None),
+        settings: RwSignal::new(false),
     };
     provide_context(ctx);
     ctx.reload();
 
     view! {
         <main>
-            <Crumbs />
+            <header>
+                <Crumbs />
+                <ThemeButton />
+            </header>
             <Summary />
+            <Show when=move || ctx.settings.get()>
+                <SettingsPanel />
+            </Show>
             <Children />
             <AddForm />
         </main>
         <ToastView />
+    }
+}
+
+#[component]
+fn ThemeButton() -> impl IntoView {
+    let saved = storage()
+        .and_then(|s| s.get_item("theme").ok().flatten())
+        .unwrap_or_default();
+    let index = RwSignal::new(THEMES.iter().position(|(t, _)| *t == saved).unwrap_or(0));
+    apply_theme(THEMES[index.get_untracked()].0);
+    let next = move |_| {
+        let i = (index.get_untracked() + 1) % THEMES.len();
+        index.set(i);
+        let theme = THEMES[i].0;
+        apply_theme(theme);
+        if let Some(s) = storage() {
+            let _ = s.set_item("theme", theme);
+        }
+    };
+    let icon = move || match THEMES[index.get()].0 {
+        "light" => "☀",
+        "dark" => "☾",
+        _ => "◐",
+    };
+    view! {
+        <button class="icon theme" title=move || THEMES[index.get()].1 on:click=next>
+            {icon}
+        </button>
     }
 }
 
@@ -178,10 +272,12 @@ fn Crumbs() -> impl IntoView {
     }
 }
 
-/// Tarjeta con el nombre y la nota del nodo actual.
+/// Tarjeta con el nombre y la nota del nodo actual, la barra de acciones, el objetivo y los
+/// avisos.
 #[component]
 fn Summary() -> impl IntoView {
     let ctx = expect_context::<Ctx>();
+    let details = Memo::new(move |_| ctx.screen.with(|s| s.details.clone()));
     move || {
         ctx.screen.with(|s| s.current.clone()).map(|item| {
             let state = if item.complete {
@@ -196,16 +292,82 @@ fn Summary() -> impl IntoView {
                 Some(false) => "big fail",
                 None => "big",
             };
+            let has_children = !item.is_leaf;
+            let weighted =
+                move || details.with(|d| d.as_ref().is_some_and(|d| d.mode == Mode::Weighted));
+            let toggle_weighting = move |_| {
+                let mode = if weighted() {
+                    Mode::Simple
+                } else {
+                    Mode::Weighted
+                };
+                ctx.update_current(Change::Mode(mode));
+            };
+            let credits =
+                move || details.with(|d| d.as_ref().is_some_and(|d| d.mode == Mode::Credits));
             view! {
                 <section class="summary">
-                    <div>
+                    <div class="title">
                         <h1>{item.name}</h1>
                         <div class="state">{state}</div>
                     </div>
                     <div class=class>{item.display}</div>
                 </section>
+                <div class="toolbar">
+                    <Show when=move || has_children>
+                        <button
+                            class="chip"
+                            class:on=weighted
+                            title="Usar pesos en vez de promedio simple"
+                            on:click=toggle_weighting
+                        >
+                            {move || if weighted() { "Ponderado ✓" } else { "Ponderar" }}
+                        </button>
+                        <Show when=credits>
+                            <span class="chip on static">"Por créditos"</span>
+                        </Show>
+                    </Show>
+                    <button
+                        class="chip"
+                        class:on=move || ctx.settings.get()
+                        on:click=move |_| ctx.settings.update(|o| *o = !*o)
+                    >
+                        "⚙ Ajustes"
+                    </button>
+                </div>
+                <GoalCard />
+                {move || {
+                    details
+                        .with(|d| d.as_ref().map(|d| d.warnings.clone()).unwrap_or_default())
+                        .into_iter()
+                        .map(|w| view! { <p class="warning">"⚠ " {w}</p> })
+                        .collect_view()
+                }}
             }
         })
+    }
+}
+
+/// "Necesitas X en …" cuando el nodo tiene objetivo.
+#[component]
+fn GoalCard() -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    move || {
+        ctx.screen
+            .with(|s| s.details.as_ref().and_then(|d| d.goal.clone()))
+            .map(|goal| {
+                let class = match goal.kind {
+                    GoalKind::Needed => "goal",
+                    GoalKind::Met => "goal met",
+                    GoalKind::Unreachable => "goal unreachable",
+                };
+                view! {
+                    <section class=class>
+                        <strong>{goal.title}</strong>
+                        <span>{goal.detail}</span>
+                    </section>
+                }
+            })
     }
 }
 
@@ -270,6 +432,52 @@ fn focus_next_grade(current: &web_sys::EventTarget) {
     }
 }
 
+/// Campo de número (nota, peso, créditos). Guarda al salir del campo o con Enter; vacío = sin
+/// valor.
+#[component]
+fn NumberField(
+    #[prop(into)] value: Signal<Option<f64>>,
+    on_set: Callback<Option<f64>>,
+    #[prop(optional)] placeholder: &'static str,
+    #[prop(optional)] class: &'static str,
+    #[prop(optional)] title: &'static str,
+) -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let text = RwSignal::new(String::new());
+    Effect::new(move |_| {
+        let v = value.get();
+        if parse_grade(&text.get_untracked()) != Ok(v) {
+            text.set(v.map(format_number).unwrap_or_default());
+        }
+    });
+    let invalid = move || parse_grade(&text.get()).is_err();
+    view! {
+        <input
+            class=format!("number {class}")
+            class:invalid=invalid
+            inputmode="decimal"
+            placeholder=placeholder
+            title=title
+            prop:value=move || text.get()
+            on:input=move |ev| text.set(event_target_value(&ev))
+            on:keydown=move |ev: KeyboardEvent| {
+                if ev.key() == "Enter"
+                    && let Some(input) = ev
+                        .target()
+                        .and_then(|t| t.dyn_into::<web_sys::HtmlElement>().ok())
+                {
+                    let _ = input.blur();
+                }
+            }
+            on:change=move |_| match parse_grade(&text.get_untracked()) {
+                Ok(new) if new != value.get_untracked() => on_set.run(new),
+                Ok(_) => {}
+                Err(e) => ctx.error(e),
+            }
+        />
+    }
+}
+
 #[component]
 fn Row(id: String) -> impl IntoView {
     let ctx = expect_context::<Ctx>();
@@ -280,6 +488,10 @@ fn Row(id: String) -> impl IntoView {
             ctx.screen
                 .with(|s| s.children.iter().find(|i| i.id == id).cloned())
         }
+    });
+    let parent_mode = Memo::new(move |_| {
+        ctx.screen
+            .with(|s| s.details.as_ref().map_or(Mode::Simple, |d| d.mode))
     });
     let name = move || item.with(|i| i.as_ref().map(|i| i.name.clone()).unwrap_or_default());
     let children = move || item.with(|i| i.as_ref().map_or(0, |i| i.children));
@@ -315,34 +527,186 @@ fn Row(id: String) -> impl IntoView {
             if editing.get() {
                 let on_enter = commit_rename.clone();
                 let on_blur = commit_rename.clone();
+                let shift = {
+                    let id = id.clone();
+                    move |delta: i32| {
+                        let args = ShiftArgs {
+                            id: id.clone(),
+                            delta,
+                        };
+                        ctx.run("shift", args, |_| {});
+                    }
+                };
+                let up = shift.clone();
                 view! {
-                    <input
-                        class="text"
-                        node_ref=input_ref
-                        prop:value=move || draft.get()
-                        on:input=move |ev| draft.set(event_target_value(&ev))
-                        on:keydown=move |ev: KeyboardEvent| match ev.key().as_str() {
-                            "Enter" => on_enter(),
-                            "Escape" => editing.set(false),
-                            _ => {}
-                        }
-                        on:blur=move |_| on_blur()
-                    />
+                    <div class="editing">
+                        <input
+                            class="text"
+                            node_ref=input_ref
+                            prop:value=move || draft.get()
+                            on:input=move |ev| draft.set(event_target_value(&ev))
+                            on:keydown=move |ev: KeyboardEvent| match ev.key().as_str() {
+                                "Enter" => on_enter(),
+                                "Escape" => editing.set(false),
+                                _ => {}
+                            }
+                            on:blur=move |_| on_blur()
+                        />
+                        // `mousedown` + preventDefault: mover sin perder el foco del nombre.
+                        <button
+                            class="icon"
+                            title="Subir"
+                            on:mousedown=move |ev| {
+                                ev.prevent_default();
+                                up(-1)
+                            }
+                        >
+                            "↑"
+                        </button>
+                        <button
+                            class="icon"
+                            title="Bajar"
+                            on:mousedown=move |ev| {
+                                ev.prevent_default();
+                                shift(1)
+                            }
+                        >
+                            "↓"
+                        </button>
+                    </div>
                 }
                 .into_any()
             } else {
                 let id = id.clone();
+                let meta = move || {
+                    item.with(|i| {
+                        let Some(i) = i else { return Vec::new() };
+                        let mut tags = Vec::new();
+                        if let Some(e) = &i.effect {
+                            tags.push(("effect", e.clone()));
+                        }
+                        for b in &i.badges {
+                            tags.push(("badge", b.clone()));
+                        }
+                        if let Some(n) = &i.weight_note {
+                            tags.push(("note", n.clone()));
+                        }
+                        for w in &i.warnings {
+                            tags.push(("warn", format!("⚠ {w}")));
+                        }
+                        tags
+                    })
+                };
                 view! {
-                    <button class="name" title="Abrir" on:click=move |_| ctx.go(Some(id.clone()))>
-                        {name}
+                    <div class="main">
+                        <button class="name" title="Abrir" on:click=move |_| ctx.go(Some(id.clone()))>
+                            {name}
+                            {move || {
+                                let n = children();
+                                (n > 0).then(|| view! { <span class="count">{n}</span> })
+                            }}
+                        </button>
                         {move || {
-                            let n = children();
-                            (n > 0).then(|| view! { <span class="count">{n}</span> })
+                            let tags = meta();
+                            (!tags.is_empty())
+                                .then(|| {
+                                    view! {
+                                        <div class="meta">
+                                            {tags
+                                                .into_iter()
+                                                .map(|(class, text)| view! { <span class=class>{text}</span> })
+                                                .collect_view()}
+                                        </div>
+                                    }
+                                })
                         }}
-                    </button>
+                    </div>
                 }
                 .into_any()
             }
+        }
+    };
+
+    // Peso (si el padre pondera) o créditos (si promedia por créditos).
+    let weight_view = {
+        let id = id.clone();
+        move || match parent_mode.get() {
+            Mode::Weighted => {
+                let id_w = id.clone();
+                let id_b = id.clone();
+                let value =
+                    Signal::derive(move || item.with(|i| i.as_ref().and_then(|i| i.weight)));
+                let on_set = Callback::new(move |w| ctx.update(id_w.clone(), Change::Weight(w)));
+                // "Respecto a": el padre (actual) o un nivel de más arriba.
+                let bases = move || {
+                    ctx.screen.with(|s| {
+                        s.path
+                            .iter()
+                            .rev()
+                            .map(|c| (c.id.clone(), c.name.clone()))
+                            .collect::<Vec<_>>()
+                    })
+                };
+                let current_base = move || {
+                    item.with(|i| i.as_ref().and_then(|i| i.weight_base.clone()))
+                        .unwrap_or_default()
+                };
+                let show_bases = move || ctx.screen.with(|s| s.path.len() >= 2);
+                view! {
+                    <div class="weight">
+                        <NumberField value on_set placeholder="%" class="pct" title="Peso en %" />
+                        <span class="unit">"%"</span>
+                        <Show when=show_bases>
+                            {
+                                let id_b = id_b.clone();
+                                view! {
+                                    <select
+                                        class="base"
+                                        title="Respecto a qué nivel se expresa el peso"
+                                        on:change=move |ev| {
+                                            let value = event_target_value(&ev);
+                                            let base = (!value.is_empty()).then_some(value);
+                                            ctx.update(id_b.clone(), Change::WeightBase(base));
+                                        }
+                                    >
+                                        {move || {
+                                            let current = current_base();
+                                            bases()
+                                                .into_iter()
+                                                .enumerate()
+                                                .map(|(i, (bid, bname))| {
+                                                    let value = if i == 0 { String::new() } else { bid };
+                                                    let selected = value == current;
+                                                    view! {
+                                                        <option value=value.clone() selected=selected>
+                                                            {format!("de {bname}")}
+                                                        </option>
+                                                    }
+                                                })
+                                                .collect_view()
+                                        }}
+                                    </select>
+                                }
+                            }
+                        </Show>
+                    </div>
+                }
+                .into_any()
+            }
+            Mode::Credits => {
+                let id = id.clone();
+                let value =
+                    Signal::derive(move || item.with(|i| i.as_ref().and_then(|i| i.credits)));
+                let on_set = Callback::new(move |c| ctx.update(id.clone(), Change::Credits(c)));
+                view! {
+                    <div class="weight">
+                        <NumberField value on_set placeholder="cr." class="pct" title="Créditos" />
+                        <span class="unit">"cr."</span>
+                    </div>
+                }
+                .into_any()
+            }
+            Mode::Simple => ().into_any(),
         }
     };
 
@@ -446,17 +810,481 @@ fn Row(id: String) -> impl IntoView {
             );
         });
     };
+    let dimmed = move || {
+        item.with(|i| {
+            i.as_ref()
+                .and_then(|i| i.effect.as_deref())
+                .is_some_and(|e| e != "Reemplaza a" && !e.starts_with("Reemplaza a"))
+        })
+    };
 
     // Los botones de acción quedan fuera del orden de Tab: Tab va de nota en nota.
     view! {
-        <li class="row">
+        <li class="row" class:dimmed=dimmed>
             {name_view}
+            {weight_view}
             {grade_view}
-            <button class="icon" tabindex="-1" title="Renombrar" on:click=rename>"✎"</button>
-            <button class="icon" tabindex="-1" title="Borrar" on:click=delete>"🗑"</button>
+            <div class="actions">
+                <button class="icon" tabindex="-1" title="Renombrar o mover" on:click=rename>
+                    "✎"
+                </button>
+                <button class="icon" tabindex="-1" title="Borrar" on:click=delete>
+                    "🗑"
+                </button>
+            </div>
         </li>
     }
 }
+
+// ------------------------------------------------------------------ ajustes
+
+/// Panel de ajustes del nodo actual: objetivo, promedio, escala y reglas opcionales.
+#[component]
+fn SettingsPanel() -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let details = Memo::new(move |_| ctx.screen.with(|s| s.details.clone()));
+    let has_children = Memo::new(move |_| ctx.screen.with(|s| !s.children.is_empty()));
+    let get = move |f: fn(&Details) -> Option<f64>| {
+        Signal::derive(move || details.with(|d| d.as_ref().and_then(f)))
+    };
+
+    let target = get(|d| d.target);
+    let set_target = Callback::new(move |t| ctx.update_current(Change::Target(t)));
+    let credits = get(|d| d.credits);
+    let set_credits = Callback::new(move |c| ctx.update_current(Change::Credits(c)));
+    let child_credits = move || {
+        details
+            .with(|d| d.as_ref().and_then(|d| d.child_credits))
+            .map(|c| {
+                format!(
+                    "Sin créditos propios: suma {} de lo de adentro.",
+                    format_number(c)
+                )
+            })
+    };
+    let has_parent = move || details.with(|d| d.as_ref().is_some_and(|d| d.has_parent));
+
+    let mode = move || details.with(|d| d.as_ref().map_or(Mode::Simple, |d| d.mode));
+    let mode_option = move |m: Mode, label: &'static str, hint: &'static str| {
+        view! {
+            <label class="option" title=hint>
+                <input
+                    type="radio"
+                    name="mode"
+                    prop:checked=move || mode() == m
+                    on:change=move |_| ctx.update_current(Change::Mode(m))
+                />
+                {label}
+            </label>
+        }
+    };
+
+    let round = move || details.with(|d| d.as_ref().and_then(|d| d.round_result));
+
+    view! {
+        <section class="panel">
+            <div class="field">
+                <span class="label">"Nota objetivo"</span>
+                <NumberField value=target on_set=set_target placeholder="Sin objetivo" />
+                <span class="hint">"Calcula cuánto necesitas en lo que falta."</span>
+            </div>
+
+            <Show when=move || has_children.get()>
+                <div class="field">
+                    <span class="label">"Promedio"</span>
+                    <div class="options">
+                        {mode_option(Mode::Simple, "Simple", "Todas valen lo mismo")}
+                        {mode_option(Mode::Weighted, "Ponderado", "Cada una con su %")}
+                        {mode_option(Mode::Credits, "Por créditos", "Según los créditos de cada una")}
+                    </div>
+                </div>
+                <div class="field">
+                    <span class="label">"Redondear esta nota"</span>
+                    <select on:change=move |ev| {
+                        let value = match event_target_value(&ev).as_str() {
+                            "yes" => Some(true),
+                            "no" => Some(false),
+                            _ => None,
+                        };
+                        ctx.update_current(Change::RoundResult(value));
+                    }>
+                        <option value="" selected=move || round().is_none()>
+                            "Automático"
+                        </option>
+                        <option value="yes" selected=move || round() == Some(true)>
+                            "Sí"
+                        </option>
+                        <option value="no" selected=move || round() == Some(false)>
+                            "No"
+                        </option>
+                    </select>
+                    <span class="hint">
+                        "Automático: se redondea si tiene objetivo o si la escala dice «cada nivel»."
+                    </span>
+                </div>
+            </Show>
+
+            <Show when=has_parent>
+                <div class="field">
+                    <span class="label">"Créditos"</span>
+                    <NumberField value=credits on_set=set_credits placeholder="—" />
+                    <span class="hint">
+                        {move || child_credits().unwrap_or_else(|| "Para promediar por créditos en el nivel de arriba.".to_owned())}
+                    </span>
+                </div>
+            </Show>
+
+            <ScaleEditor details />
+
+            <details class="rules">
+                <summary>"Reglas opcionales"</summary>
+                <RulesEditor details has_children />
+            </details>
+        </section>
+    }
+}
+
+#[component]
+fn ScaleEditor(details: Memo<Option<Details>>) -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let own = move || details.with(|d| d.as_ref().is_some_and(|d| d.config.own));
+    let settings = move || {
+        details.with(|d| {
+            d.as_ref()
+                .map_or(ScaleSettings::SCALE_1_7, |d| d.config.settings)
+        })
+    };
+    let origin = move || {
+        details.with(|d| match d.as_ref() {
+            Some(d) if d.config.own => "Escala propia de este nivel.".to_owned(),
+            Some(d) => match &d.config.inherited_from {
+                Some(name) => format!("Heredada de {name}."),
+                None => "Escala por defecto.".to_owned(),
+            },
+            None => String::new(),
+        })
+    };
+    let summary = move || {
+        let s = settings();
+        format!(
+            "{} a {}, aprueba con {}, {} decimal{}",
+            format_grade(s.min, s.decimals),
+            format_grade(s.max, s.decimals),
+            format_grade(s.pass, s.decimals),
+            s.decimals,
+            if s.decimals == 1 { "" } else { "es" }
+        )
+    };
+    let set = move |s: ScaleSettings| ctx.update_current(Change::Config(Some(s)));
+    let number = move |f: fn(&ScaleSettings) -> f64, apply: fn(&mut ScaleSettings, f64)| {
+        let value = Signal::derive(move || Some(f(&settings())));
+        let on_set = Callback::new(move |v: Option<f64>| {
+            if let Some(v) = v {
+                let mut s = settings();
+                apply(&mut s, v);
+                set(s);
+            }
+        });
+        view! { <NumberField value on_set /> }
+    };
+    let flag = move |label: &'static str,
+                     f: fn(&ScaleSettings) -> bool,
+                     apply: fn(&mut ScaleSettings, bool)| {
+        view! {
+            <label class="option">
+                <input
+                    type="checkbox"
+                    prop:checked=move || f(&settings())
+                    on:change=move |ev| {
+                        let mut s = settings();
+                        apply(&mut s, event_target_checked(&ev));
+                        set(s);
+                    }
+                />
+                {label}
+            </label>
+        }
+    };
+
+    view! {
+        <div class="field">
+            <span class="label">"Escala"</span>
+            <span class="hint">{origin} " " {summary}</span>
+            <label class="option">
+                <input
+                    type="checkbox"
+                    prop:checked=own
+                    on:change=move |ev| {
+                        let change = if event_target_checked(&ev) { Some(settings()) } else { None };
+                        ctx.update_current(Change::Config(change));
+                    }
+                />
+                "Usar una escala propia aquí (y en lo de adentro)"
+            </label>
+        </div>
+        <Show when=own>
+            <div class="scale">
+                <div class="presets">
+                    <button class="chip" on:click=move |_| set(ScaleSettings::SCALE_1_7)>
+                        "1,0 – 7,0"
+                    </button>
+                    <button class="chip" on:click=move |_| set(ScaleSettings::SCALE_0_100)>
+                        "0 – 100"
+                    </button>
+                </div>
+                <div class="grid">
+                    <label>"Mínima" {number(|s| s.min, |s, v| s.min = v)}</label>
+                    <label>"Máxima" {number(|s| s.max, |s, v| s.max = v)}</label>
+                    <label>"Aprobación" {number(|s| s.pass, |s, v| s.pass = v)}</label>
+                    <label>
+                        "Decimales"
+                        <select on:change=move |ev| {
+                            if let Ok(d) = event_target_value(&ev).parse::<u8>() {
+                                let mut s = settings();
+                                s.decimals = d;
+                                set(s);
+                            }
+                        }>
+                            {(0u8..=3)
+                                .map(|d| {
+                                    view! {
+                                        <option value=d.to_string() selected=move || settings().decimals == d>
+                                            {d.to_string()}
+                                        </option>
+                                    }
+                                })
+                                .collect_view()}
+                        </select>
+                    </label>
+                </div>
+                {flag("Truncar en vez de aproximar", |s| s.truncate, |s, v| s.truncate = v)}
+                {flag("Redondear el promedio de cada nivel", |s| s.round_every_level, |s, v| s.round_every_level = v)}
+                {flag(
+                    "Al pasar a otra escala, hacer calzar la nota de aprobación",
+                    |s| s.by_pass,
+                    |s, v| s.by_pass = v,
+                )}
+            </div>
+        </Show>
+    }
+}
+
+#[component]
+fn RulesEditor(details: Memo<Option<Details>>, has_children: Memo<bool>) -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let rules = move || details.with(|d| d.as_ref().map(|d| d.rules.clone()).unwrap_or_default());
+    let set = move |r: RulesSettings| ctx.update_current(Change::Rules(r));
+    let has_parent = move || details.with(|d| d.as_ref().is_some_and(|d| d.has_parent));
+    let siblings =
+        move || details.with(|d| d.as_ref().map(|d| d.siblings.clone()).unwrap_or_default());
+
+    // Eliminar las peores (en el padre).
+    let drop = Signal::derive(move || Some(f64::from(rules().drop_lowest)));
+    let set_drop = Callback::new(move |v: Option<f64>| {
+        let mut r = rules();
+        r.drop_lowest = v.unwrap_or(0.0).max(0.0).round() as u32;
+        set(r);
+    });
+
+    // Reemplazo.
+    let replaces = move || rules().replaces;
+    let toggle_replaces = move |on: bool| {
+        let mut r = rules();
+        r.replaces = on.then(ReplaceSettings::default);
+        if on {
+            r.exemption = None;
+        }
+        set(r);
+    };
+    let edit_replaces = move |f: &dyn Fn(&mut ReplaceSettings)| {
+        let mut r = rules();
+        if let Some(rep) = r.replaces.as_mut() {
+            f(rep);
+            set(r);
+        }
+    };
+
+    // Eximición.
+    let exemption = move || rules().exemption;
+    let toggle_exemption = move |on: bool| {
+        let mut r = rules();
+        r.exemption = on.then_some(ExemptionSettings {
+            threshold: 5.5,
+            keep_if_better: false,
+        });
+        if on {
+            r.replaces = None;
+        }
+        set(r);
+    };
+    let threshold = Signal::derive(move || exemption().map(|e| e.threshold));
+    let set_threshold = Callback::new(move |v: Option<f64>| {
+        let mut r = rules();
+        if let (Some(e), Some(v)) = (r.exemption.as_mut(), v) {
+            e.threshold = v;
+            set(r);
+        }
+    });
+
+    // Mínimo.
+    let minimum = move || rules().minimum;
+    let toggle_minimum = move |on: bool| {
+        let mut r = rules();
+        let pass = details.with(|d| d.as_ref().map_or(4.0, |d| d.config.settings.pass));
+        r.minimum = on.then_some(MinimumSettings {
+            grade: pass,
+            cap: None,
+        });
+        set(r);
+    };
+    let min_grade = Signal::derive(move || minimum().map(|m| m.grade));
+    let set_min_grade = Callback::new(move |v: Option<f64>| {
+        let mut r = rules();
+        if let (Some(m), Some(v)) = (r.minimum.as_mut(), v) {
+            m.grade = v;
+            set(r);
+        }
+    });
+    let min_cap = Signal::derive(move || minimum().and_then(|m| m.cap));
+    let set_min_cap = Callback::new(move |v: Option<f64>| {
+        let mut r = rules();
+        if let Some(m) = r.minimum.as_mut() {
+            m.cap = v;
+            set(r);
+        }
+    });
+
+    view! {
+        <p class="hint">"Todas vienen apagadas. Actívalas solo si tu ramo las usa."</p>
+        <Show when=move || has_children.get()>
+            <div class="field">
+                <span class="label">"Eliminar las peores notas"</span>
+                <NumberField value=drop on_set=set_drop placeholder="0" />
+                <span class="hint">"Cuántas de las notas más bajas de aquí adentro no cuentan."</span>
+            </div>
+        </Show>
+        <Show
+            when=has_parent
+            fallback=|| view! { <p class="hint">"Las demás reglas se ponen en una evaluación (ábrela y vuelve aquí)."</p> }
+        >
+            <div class="rule">
+                <label class="option">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || replaces().is_some()
+                        on:change=move |ev| toggle_replaces(event_target_checked(&ev))
+                    />
+                    "Esta nota reemplaza a otra (examen, recuperativa)"
+                </label>
+                <Show when=move || replaces().is_some()>
+                    <div class="sub">
+                        <label>
+                            "Reemplaza a "
+                            <select on:change=move |ev| {
+                                let value = event_target_value(&ev);
+                                edit_replaces(&|rep| rep.target = (!value.is_empty()).then(|| value.clone()));
+                            }>
+                                <option value="" selected=move || replaces().is_some_and(|r| r.target.is_none())>
+                                    "la peor nota"
+                                </option>
+                                {move || {
+                                    let current = replaces().and_then(|r| r.target);
+                                    siblings()
+                                        .into_iter()
+                                        .map(|s| {
+                                            let selected = current.as_deref() == Some(s.id.as_str());
+                                            view! { <option value=s.id selected=selected>{s.name}</option> }
+                                        })
+                                        .collect_view()
+                                }}
+                            </select>
+                        </label>
+                        <label class="option">
+                            <input
+                                type="checkbox"
+                                prop:checked=move || replaces().is_some_and(|r| r.only_if_better)
+                                on:change=move |ev| {
+                                    let on = event_target_checked(&ev);
+                                    edit_replaces(&|rep| rep.only_if_better = on);
+                                }
+                            />
+                            "Solo si mejora"
+                        </label>
+                        <label class="option">
+                            <input
+                                type="checkbox"
+                                prop:checked=move || replaces().is_some_and(|r| r.counts_itself)
+                                on:change=move |ev| {
+                                    let on = event_target_checked(&ev);
+                                    edit_replaces(&|rep| rep.counts_itself = on);
+                                }
+                            />
+                            "Cuenta también como una nota más"
+                        </label>
+                    </div>
+                </Show>
+            </div>
+
+            <div class="rule">
+                <label class="option">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || exemption().is_some()
+                        on:change=move |ev| toggle_exemption(event_target_checked(&ev))
+                    />
+                    "Eximible: no se rinde si el promedio de lo demás alcanza"
+                </label>
+                <Show when=move || exemption().is_some()>
+                    <div class="sub">
+                        <label>
+                            "Se exime desde "
+                            <NumberField value=threshold on_set=set_threshold />
+                        </label>
+                        <label class="option">
+                            <input
+                                type="checkbox"
+                                prop:checked=move || exemption().is_some_and(|e| e.keep_if_better)
+                                on:change=move |ev| {
+                                    let mut r = rules();
+                                    if let Some(e) = r.exemption.as_mut() {
+                                        e.keep_if_better = event_target_checked(&ev);
+                                        set(r);
+                                    }
+                                }
+                            />
+                            "Si igual se rinde y sube el promedio, contarla"
+                        </label>
+                    </div>
+                </Show>
+            </div>
+
+            <div class="rule">
+                <label class="option">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || minimum().is_some()
+                        on:change=move |ev| toggle_minimum(event_target_checked(&ev))
+                    />
+                    "Nota mínima para aprobar el nivel de arriba"
+                </label>
+                <Show when=move || minimum().is_some()>
+                    <div class="sub">
+                        <label>
+                            "Mínimo "
+                            <NumberField value=min_grade on_set=set_min_grade />
+                        </label>
+                        <label>
+                            "Si no se cumple, la nota de arriba queda en a lo más "
+                            <NumberField value=min_cap on_set=set_min_cap placeholder="sin tope" />
+                        </label>
+                    </div>
+                </Show>
+            </div>
+        </Show>
+    }
+}
+
+// ------------------------------------------------------------------ agregar y avisos
 
 #[component]
 fn AddForm() -> impl IntoView {
@@ -468,9 +1296,7 @@ fn AddForm() -> impl IntoView {
             return;
         }
         name.set(String::new());
-        let parent = ctx
-            .screen
-            .with_untracked(|s| s.current.as_ref().map(|c| c.id.clone()));
+        let parent = ctx.current_id();
         ctx.run("create", CreateArgs { parent, name: text }, |_| {});
     };
     let placeholder = move || {

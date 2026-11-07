@@ -94,11 +94,11 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** en Windows se puede armar un ramo completo e ingresar notas, y se guarda al cerrar.
 
 ### Fase 7 — UI completa
-- [ ] Botón "Ponderar" visible en cada nodo con hijos; edición de pesos (y "respecto a" otro nivel).
-- [ ] Panel de configuración de nota (escala, decimales, truncar/aproximar), heredable.
-- [ ] Objetivo y tarjeta "Necesitas X en …".
-- [ ] Panel "Reglas opcionales" (Fase 4), plegado por defecto.
-- [ ] Diseño adaptable a teléfono, tema claro/oscuro.
+- [x] Botón "Ponderar" visible en cada nodo con hijos; edición de pesos (y "respecto a" otro nivel).
+- [x] Panel de configuración de nota (escala, decimales, truncar/aproximar), heredable.
+- [x] Objetivo y tarjeta "Necesitas X en …".
+- [x] Panel "Reglas opcionales" (Fase 4), plegado por defecto.
+- [x] Diseño adaptable a teléfono, tema claro/oscuro.
 **Listo cuando:** se pueden usar todas las funciones de Fases 1–4 desde la interfaz.
 
 ### Fase 8 — Cuenta y sincronización (`notable-sync`)
@@ -152,3 +152,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 6: crate `notable-api` con los tipos que se intercambian (`Screen`, `Item`, `Crumb`, `Scale`): datos ya listos para mostrar (nota formateada con coma decimal), así la interfaz no calcula nada y no arrastra `uuid` a WebAssembly. La lógica de la app vive en `src-tauri/src/state.rs` sin depender de Tauri (se prueba directo); los comandos son `screen`, `create`, `rename`, `delete`, `restore` y `set_grade`, y cada cambio se guarda al instante en `%APPDATA%\io.github.malvarezdam.notable\notable.db`.
 - 2026-11-07: Fase 6: borrar no pide confirmación: muestra "Se borró «X» · Deshacer" durante 8 s (el borrado es lógico). Si la base no abre, la app no toca nada y cada comando muestra el error. Las filas se identifican por id y se actualizan en el lugar (si no, el foco se perdía al pasar de una nota a otra); Enter en una nota salta a la siguiente y los botones ✎/🗑 quedan fuera del orden de Tab.
 - 2026-11-07: Fase 6: CSP desactivada (`csp: null`) por ahora: la app no carga nada remoto. Revisar en la Fase 10 (Trunk inyecta un script en línea que una CSP estricta bloquearía). Íconos generados con `cargo tauri icon app/icon.svg` (sin los de iOS).
+- 2026-11-07: Fase 7: un solo comando `update(id, Change)` para todos los ajustes (modo, peso, "respecto a", escala, objetivo, redondeo, créditos, reglas); la interfaz manda las reglas completas. `notable-api` trae los datos ya en texto (avisos, efectos de reglas, tarjeta del objetivo, "= 25 % de Tareas").
+- 2026-11-07: Fase 7: "Ponderar" es un botón en la barra del nodo; al activarlo por primera vez reparte 100 % en partes iguales (33,33/33,33/33,34) para partir de algo válido. El selector "respecto a" solo aparece con dos o más niveles arriba. Todo lo demás (objetivo, promedio, escala, redondeo, créditos) va en "⚙ Ajustes", y las reglas en un desplegable cerrado dentro de él.
+- 2026-11-07: Fase 7: tema Sistema/Claro/Oscuro con un botón (se guarda en `localStorage`, atributo `data-theme`). En pantallas angostas cada fila se parte en dos líneas. Reordenar: al renombrar una fila aparecen ↑/↓ (comando `shift`).
+- 2026-11-07: Fase 7: probada en el navegador integrado con un puente HTTP temporal sobre el `state.rs` real (fuera del repo), porque el control de escritorio no alcanza la ventana de desarrollo de Tauri.
