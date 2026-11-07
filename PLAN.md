@@ -63,11 +63,12 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** pruebas con casos reales (ramo USM 0–100, ramo 1–7, mezcla de escalas, redondeo intermedio).
 
 ### Fase 3 — Nota objetivo y nota mínima necesaria
-- [ ] Objetivo opcional por nodo (normalmente el ramo).
-- [ ] Si falta exactamente 1 nota: nota mínima necesaria. Despeje lineal cuando no hay redondeo intermedio;
+- [x] Objetivo opcional por nodo (normalmente el ramo).
+- [x] Si falta exactamente 1 nota: nota mínima necesaria. Despeje lineal cuando no hay redondeo intermedio;
       búsqueda sobre los valores posibles de la escala (según decimales) cuando sí lo hay.
-- [ ] Resultados: `Necesitas(x)`, `YaCumplido`, `NoAlcanzable`.
-- [ ] Extra: si faltan varias notas, promedio necesario en lo que falta (asumiendo la misma nota en todas).
+      *(Se usa siempre la búsqueda; ver registro.)*
+- [x] Resultados: `Necesitas(x)`, `YaCumplido`, `NoAlcanzable`.
+- [x] Extra: si faltan varias notas, promedio necesario en lo que falta (asumiendo la misma nota en todas).
 **Listo cuando:** pruebas de casos borde (exacto en el límite, truncado vs aproximado, ya cumplido, imposible).
 
 ### Fase 4 — Reglas opcionales (todas apagadas por defecto)
@@ -136,3 +137,6 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 2: los pesos son porcentajes. Si no suman 100 se avisa y se normaliza; un hijo sin peso en un nodo ponderado cuenta 0 (con aviso). La nota parcial usa solo los pesos de los hijos que tienen nota.
 - 2026-11-07: Fase 2: conversión de escala lineal por defecto, con la opción `ByPass` (en dos tramos, la aprobación va a la aprobación: 55/100 → 4,0). La define la escala del hijo. Se convierte la nota ya redondeada del hijo.
 - 2026-11-07: Fase 2: el peso "respecto a" un ancestro (`weight_base`) se divide por la fracción que vale el padre dentro de ese ancestro. Si la base deja de ser ancestro, o algún nivel intermedio vale 0, se usa como peso respecto al padre y se avisa. Los avisos nunca impiden calcular.
+- 2026-11-07: Fase 3: el objetivo (`target`) va en la escala del nodo. Un nodo con objetivo redondea su nota final por defecto (es la que se compara); `round_result = Some(false)` lo apaga. Un objetivo fuera de escala se permite, con aviso (`TargetOutOfScale`), y resulta inalcanzable.
+- 2026-11-07: Fase 3: la nota mínima siempre se busca (búsqueda binaria) sobre los valores que se pueden sacar en la escala según sus decimales, en vez de despejar: como la nota final nunca baja al subir una nota, el resultado es exacto con o sin redondeo intermedio, truncado o aproximado, `ByPass` y anidación, y siempre es una nota real (4,1 y no 4,03). Cuesta unas pocas decenas de cálculos del subárbol.
+- 2026-11-07: Fase 3: `YaCumplido` significa asegurado (se cumple aunque lo que falta salga con la nota mínima); `NoAlcanzable` incluye "ya no falta nada y no se cumplió". Si faltan varias notas se supone el mismo lugar relativo en cada escala (la misma nota si comparten escala); se informa la nota de cada una en su escala.

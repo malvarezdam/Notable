@@ -31,9 +31,14 @@ pub struct Node {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub weight_base: Option<NodeId>,
     /// Redondear la nota calculada de este nodo: `Some(true)` sí, `Some(false)` no, `None` =
-    /// lo que diga [`GradeConfig::round_every_level`]. No afecta a las notas ingresadas.
+    /// lo que diga [`GradeConfig::round_every_level`], salvo que el nodo tenga objetivo: entonces
+    /// su nota final se redondea. No afecta a las notas ingresadas.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub round_result: Option<bool>,
+    /// Nota objetivo opcional (normalmente la del ramo), en la escala del nodo. Con ella se
+    /// calcula la nota mínima necesaria (ver [`crate::Tree::requirement`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<f64>,
     /// Cómo se combinan los hijos de este nodo.
     #[serde(default)]
     pub aggregation: Aggregation,
@@ -57,6 +62,7 @@ impl Node {
             weight: None,
             weight_base: None,
             round_result: None,
+            target: None,
             aggregation: Aggregation::default(),
             config: None,
             deleted: false,

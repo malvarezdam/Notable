@@ -5,6 +5,7 @@
 mod calc;
 mod config;
 mod error;
+mod goal;
 mod id;
 mod node;
 mod tree;
@@ -12,6 +13,7 @@ mod tree;
 pub use calc::{Evaluation, NodeResult, Warning};
 pub use config::{Aggregation, Conversion, GradeConfig, Rounding};
 pub use error::{ConfigError, TreeError};
+pub use goal::{MissingGrade, Requirement};
 pub use id::NodeId;
 pub use node::Node;
 pub use tree::Tree;

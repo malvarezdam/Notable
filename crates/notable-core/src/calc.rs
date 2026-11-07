@@ -54,6 +54,8 @@ pub enum Warning {
     UnconvertibleWeight { node: NodeId },
     /// Nota ingresada fuera de la escala.
     GradeOutOfScale { node: NodeId, grade: f64 },
+    /// Nota objetivo fuera de la escala.
+    TargetOutOfScale { node: NodeId, target: f64 },
 }
 
 impl Warning {
@@ -65,7 +67,8 @@ impl Warning {
             | Self::MissingWeight { node }
             | Self::InvalidWeightBase { node }
             | Self::UnconvertibleWeight { node }
-            | Self::GradeOutOfScale { node, .. } => *node,
+            | Self::GradeOutOfScale { node, .. }
+            | Self::TargetOutOfScale { node, .. } => *node,
         }
     }
 }
@@ -126,30 +129,34 @@ struct Layout {
     share: f64,
 }
 
-struct Calculator<'a> {
+/// Calcula notas. La disposición (configuración, pesos, fracciones) no depende de las notas, así
+/// que se resuelve una vez en [`Calculator::new`]; luego [`Calculator::compute`] puede llamarse
+/// varias veces con distintas notas supuestas (`overrides`), como hace la nota mínima.
+pub(crate) struct Calculator<'a> {
     tree: &'a Tree,
     layout: HashMap<NodeId, Layout>,
+    /// Notas supuestas para hojas sin nota (no se guardan en el árbol).
+    pub(crate) overrides: HashMap<NodeId, f64>,
     results: HashMap<NodeId, NodeResult>,
     warnings: Vec<Warning>,
 }
 
 impl<'a> Calculator<'a> {
-    fn new(tree: &'a Tree) -> Self {
-        Self {
+    pub(crate) fn new(tree: &'a Tree) -> Self {
+        let mut calc = Self {
             tree,
             layout: HashMap::new(),
+            overrides: HashMap::new(),
             results: HashMap::new(),
             warnings: Vec::new(),
-        }
-    }
+        };
 
-    fn run(mut self) -> Evaluation {
         // De arriba hacia abajo: configuración, pesos y fracciones. Cada nivel necesita las
         // fracciones de sus ancestros para convertir pesos "respecto a".
         let mut queue = Vec::new();
-        for root in self.tree.roots() {
+        for root in tree.roots() {
             let config = root.config.unwrap_or_default();
-            self.layout.insert(
+            calc.layout.insert(
                 root.id,
                 Layout {
                     config,
@@ -163,10 +170,26 @@ impl<'a> Calculator<'a> {
         while i < queue.len() {
             let parent = queue[i];
             i += 1;
-            self.layout_children(parent);
-            queue.extend(self.tree.children(Some(parent)).map(|c| c.id));
+            calc.layout_children(parent);
+            queue.extend(tree.children(Some(parent)).map(|c| c.id));
         }
+        calc
+    }
 
+    /// Configuración que usa un nodo visible.
+    pub(crate) fn config(&self, id: NodeId) -> GradeConfig {
+        self.layout[&id].config
+    }
+
+    /// Calcula la nota de `id` con las notas supuestas actuales, sin acumular avisos.
+    pub(crate) fn probe(&mut self, id: NodeId) -> Option<f64> {
+        let grade = self.compute(id).grade;
+        self.results.clear();
+        self.warnings.clear();
+        grade
+    }
+
+    fn run(mut self) -> Evaluation {
         // De abajo hacia arriba: notas.
         let roots: Vec<NodeId> = self.tree.roots().map(|n| n.id).collect();
         for root in roots {
@@ -282,6 +305,15 @@ impl<'a> Calculator<'a> {
         let config = layout.config;
         let children: Vec<NodeId> = self.tree.children(Some(id)).map(|c| c.id).collect();
 
+        if let Some(t) = node.target
+            && !config.contains(t)
+        {
+            self.warnings.push(Warning::TargetOutOfScale {
+                node: id,
+                target: t,
+            });
+        }
+
         let (unrounded, complete) = if children.is_empty() {
             if let Some(g) = node.grade
                 && !config.contains(g)
@@ -289,7 +321,8 @@ impl<'a> Calculator<'a> {
                 self.warnings
                     .push(Warning::GradeOutOfScale { node: id, grade: g });
             }
-            (node.grade, node.grade.is_some())
+            let grade = node.grade.or_else(|| self.overrides.get(&id).copied());
+            (grade, grade.is_some())
         } else {
             let mut sum = 0.0;
             let mut weight_sum = 0.0;
@@ -308,7 +341,12 @@ impl<'a> Calculator<'a> {
         };
 
         let is_computed = !self.tree.is_leaf(id);
-        let round = is_computed && node.round_result.unwrap_or(config.round_every_level);
+        // Un nodo con objetivo redondea su nota final (salvo que diga lo contrario), porque es la
+        // que se compara con el objetivo.
+        let round = is_computed
+            && node
+                .round_result
+                .unwrap_or(config.round_every_level || node.target.is_some());
         let grade = if round {
             unrounded.map(|g| config.apply_rounding(g))
         } else {

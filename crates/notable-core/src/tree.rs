@@ -320,6 +320,17 @@ impl Tree {
         Ok(())
     }
 
+    /// Define o quita (`None`) la nota objetivo del nodo, en su propia escala. Puede quedar fuera
+    /// de la escala (el cálculo lo avisa y el objetivo resulta inalcanzable).
+    pub fn set_target(&mut self, id: NodeId, target: Option<f64>) -> Result<(), TreeError> {
+        self.alive(id)?;
+        if target.is_some_and(|t| !t.is_finite()) {
+            return Err(TreeError::InvalidNumber);
+        }
+        self.modify(id, |n| n.target = target);
+        Ok(())
+    }
+
     // ---------------------------------------------------------------- cambios pendientes
 
     /// Entrega (y olvida) los ids de los nodos modificados desde la última llamada.
@@ -338,7 +349,7 @@ impl Tree {
         self.nodes.get(&id).ok_or(TreeError::NotFound(id))
     }
 
-    fn alive(&self, id: NodeId) -> Result<(), TreeError> {
+    pub(crate) fn alive(&self, id: NodeId) -> Result<(), TreeError> {
         self.node(id)?;
         if self.is_alive(id) {
             Ok(())

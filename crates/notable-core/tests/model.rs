@@ -456,6 +456,7 @@ fn json_format_is_stable() {
         weight: Some(20.0),
         weight_base: None,
         round_result: Some(true),
+        target: None,
         aggregation: Aggregation::Weighted,
         config: Some(GradeConfig::SCALE_0_100),
         deleted: false,
