@@ -4,6 +4,7 @@ description = "Tipos que intercambian la app de Notable y su interfaz (solo serd
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 repository.workspace = true
 
 [dependencies]

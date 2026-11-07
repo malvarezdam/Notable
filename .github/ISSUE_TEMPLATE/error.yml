@@ -1,0 +1,28 @@
+name: Error
+description: Algo no funciona o calcula mal
+labels: ["error"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué pasó
+      description: Qué hiciste, qué esperabas y qué pasó en cambio.
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Datos para reproducirlo
+      description: Si es un cálculo, las notas, pesos, escala y reglas activas (o un respaldo JSON sin datos personales).
+  - type: dropdown
+    id: system
+    attributes:
+      label: Sistema
+      options: [Windows, Linux, Android]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Notable
+      placeholder: "0.1.0"

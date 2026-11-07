@@ -4,6 +4,7 @@ description = "App de escritorio y Android de Notable (Tauri 2)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
 repository.workspace = true
 
 [lib]

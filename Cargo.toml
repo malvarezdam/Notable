@@ -6,4 +6,6 @@ members = ["crates/notable-core", "crates/notable-store", "crates/notable-sync",
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+authors = ["malvarezdam"]
+homepage = "https://github.com/malvarezdam/Notable"
 repository = "https://github.com/malvarezdam/Notable"

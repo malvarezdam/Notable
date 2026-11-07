@@ -74,6 +74,19 @@ El plan de desarrollo y las decisiones están en [PLAN.md](PLAN.md).
 | `app/` | Interfaz (Leptos, WebAssembly). `app/src-tauri/`: la app (Tauri 2, escritorio y Android). |
 | `supabase/schema.sql` | Esquema del servidor. |
 
-## Licencia
+## Contribuir
 
-[MIT](LICENSE)
+Errores, ideas y pull requests son bienvenidos: ver [CONTRIBUTING.md](CONTRIBUTING.md) y el
+[código de conducta](CODE_OF_CONDUCT.md). Los problemas de seguridad se reportan en privado
+([SECURITY.md](SECURITY.md)). Qué datos guarda la app y dónde: [PRIVACY.md](PRIVACY.md).
+Historial de versiones: [CHANGELOG.md](CHANGELOG.md).
+
+## Derechos de autor y licencia
+
+Copyright © 2026 malvarezdam. Notable es software libre bajo la [licencia MIT](LICENSE): puedes
+usarlo, copiarlo, modificarlo y distribuirlo, también con fines comerciales, siempre que
+conserves el aviso de copyright y la licencia. Se entrega "tal cual", sin garantías: revisa tus
+notas oficiales con tu institución.
+
+Notable usa bibliotecas de terceros (Tauri, Leptos, SQLite, entre otras), cada una con su propia
+licencia (en su mayoría MIT o Apache-2.0); sus avisos se conservan en sus paquetes.

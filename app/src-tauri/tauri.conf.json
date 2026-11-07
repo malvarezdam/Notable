@@ -27,6 +27,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "malvarezdam",
+    "copyright": "Copyright © 2026 malvarezdam. Licencia MIT.",
+    "license": "MIT",
+    "licenseFile": "../../LICENSE",
+    "category": "Education",
+    "shortDescription": "Gestor de notas y calificaciones",
+    "longDescription": "Organiza tus ramos y evaluaciones, calcula promedios simples o ponderados y cuánto necesitas para llegar a tu objetivo. Funciona sin internet; la sincronización entre dispositivos es opcional.",
+    "homepage": "https://github.com/malvarezdam/Notable",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

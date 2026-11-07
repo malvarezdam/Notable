@@ -116,10 +116,10 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** el APK se instala en el teléfono del usuario y sincroniza con el PC. **Probado en el emulador** (Android 37): abre, calcula, guarda al cerrar y se conecta a Supabase por HTTPS. **Falta:** instalarlo en el teléfono y probar la sincronización con una cuenta real.
 
 ### Fase 10 — CI y publicación
-- [ ] GitHub Actions: `cargo test` + clippy en cada push.
-- [ ] Workflow de release (al crear un tag `v*`): instalador Windows, AppImage/deb Linux, APK Android → GitHub Releases.
-- [ ] Secretos del workflow (clave de firma Android) como GitHub Secrets.
-- [ ] README con capturas, instalación y cómo usar.
+- [x] GitHub Actions: `cargo test` + clippy en cada push.
+- [x] Workflow de release (al crear un tag `v*`): instalador Windows, AppImage/deb Linux, APK Android → GitHub Releases.
+- [x] Secretos del workflow (clave de firma Android) como GitHub Secrets.
+- [x] README con capturas, instalación y cómo usar.
 **Listo cuando:** crear un tag publica una release descargable.
 
 ---
@@ -166,3 +166,5 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 9: la app se dibuja de borde a borde (Android 15+), así que `MainActivity` aplica como margen las barras del sistema, el recorte de cámara y el teclado (más confiable que `env(safe-area-inset-*)` en el WebView). En pantallas táctiles los botones son de 40 px y siempre visibles.
 - 2026-11-07: Fase 9: se compilan APK separados por ABI: `arm64` (teléfonos) y `x86_64` (emulador). En Windows, `tauri android build` necesita el "Modo para desarrolladores" activado (crea enlaces simbólicos). Sin cable, el APK se pasa al teléfono por Drive/WhatsApp/correo (ver `docs/CONFIGURACION.md` 3.1).
 - 2026-11-07: Repo: `malvarezdam/Notable` ya existía con la versión web 1.0 (1 commit, release `v1.0`, GitHub Pages). A pedido del usuario se reemplazó por completo con push forzado; respaldo espejo en `C:\Users\Victus\Desktop\Notable-respaldo-v1.git`.
+- 2026-11-07: Fase 10: CI en `ubuntu-24.04` (formato, clippy de todo incluido WebAssembly, pruebas; `app/dist` vacío porque la app incrusta la interfaz). Release por tag `v*`: borrador → Windows y Linux (`cargo tauri build`) y Android (arm64 + armv7, firmado con los secretos `ANDROID_KEYSTORE_BASE64`/`_PASSWORD`/`ANDROID_KEY_ALIAS`) → se publica al final.
+- 2026-11-07: Fase 10: archivos del repo: CONTRIBUTING, CODE_OF_CONDUCT (propio, inspirado en Contributor Covenant), SECURITY (reporte privado de GitHub), PRIVACY, CHANGELOG, plantillas de issues y PR; copyright, editor y licencia en los instaladores (`tauri.conf.json`) y `authors` en Cargo.

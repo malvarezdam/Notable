@@ -1,0 +1,15 @@
+name: Idea
+description: Propón algo nuevo o una regla de cálculo que te falte
+labels: ["idea"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Qué te gustaría poder hacer
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Por qué / cómo funciona en tu universidad
+      description: Recuerda que en Notable toda regla es opcional y configurable.
