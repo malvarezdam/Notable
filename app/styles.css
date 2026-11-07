@@ -588,3 +588,61 @@ input.text {
     min-height: 36px;
   }
 }
+
+/* Cuenta y sincronización */
+.chip.sync {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.chip.sync.ok .sync-icon {
+  color: var(--pass);
+}
+
+.chip.sync.warn .sync-icon {
+  color: var(--warn);
+}
+
+.chip.sync.busy .sync-icon {
+  color: var(--accent);
+}
+
+.chip.sync.off {
+  color: var(--muted);
+}
+
+.account .login {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  margin: 8px 0;
+}
+
+.account .buttons,
+.login .buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.account .note {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 520px) {
+  .chip.sync .sync-text {
+    display: none;
+  }
+}

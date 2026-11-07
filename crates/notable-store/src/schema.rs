@@ -19,6 +19,11 @@ const MIGRATIONS: &[&str] = &[
         dirty      INTEGER NOT NULL DEFAULT 1
     );
     CREATE INDEX items_dirty ON items (dirty) WHERE dirty = 1;",
+    // 2: datos sueltos de la app (sesión de la cuenta, punto de la última sincronización…).
+    "CREATE TABLE meta (
+        key   TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+    );",
 ];
 
 /// Versión de esquema que entiende esta versión de la app.

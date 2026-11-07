@@ -8,6 +8,7 @@
 mod backup;
 mod error;
 mod schema;
+mod sync;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,12 +20,13 @@ use rusqlite::{Connection, Transaction, params};
 pub use backup::{BACKUP_FORMAT, BACKUP_VERSION, Backup};
 pub use error::StoreError;
 pub use schema::SCHEMA_VERSION;
+pub use sync::SyncRow;
 
 pub type Result<T> = std::result::Result<T, StoreError>;
 
 /// La base de datos local.
 pub struct Store {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl Store {
@@ -125,7 +127,7 @@ impl Store {
 
     // ---------------------------------------------------------------- internos
 
-    fn load_nodes(&self) -> Result<Vec<Node>> {
+    pub(crate) fn load_nodes(&self) -> Result<Vec<Node>> {
         let mut stmt = self.conn.prepare("SELECT id, data FROM items")?;
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

@@ -13,7 +13,8 @@ use notable_core::{
     Aggregation, Conversion, Effect, Evaluation, Exemption, GradeConfig, Minimum, NodeId,
     ReplaceTarget, Replacement, Requirement, Rounding, Rules, Tree, Warning,
 };
-use notable_store::Store;
+use notable_store::{Store, SyncRow};
+use notable_sync::{RemoteRow, Session};
 
 pub type Result<T> = std::result::Result<T, String>;
 
@@ -175,6 +176,64 @@ impl Data {
             return Err(e.to_string());
         }
         self.save()
+    }
+
+    // ---------------------------------------------------------------- cuenta y sincronización
+    //
+    // La red se usa fuera del candado del estado: la app llama a `sync_begin`, baja los cambios
+    // sin bloquear nada, llama a `sync_apply` (que devuelve lo pendiente), sube y termina con
+    // `sync_end`.
+
+    /// La sesión guardada (si se inició sesión en este dispositivo).
+    pub fn session(&self) -> Result<Option<Session>> {
+        notable_sync::load_session(&self.store).map_err(|e| e.to_string())
+    }
+
+    /// Guarda la sesión recién iniciada y prepara la fusión con la cuenta.
+    pub fn signed_in(&mut self, session: &Session) -> Result<()> {
+        notable_sync::bind_account(&mut self.store, &session.user_id).map_err(|e| e.to_string())?;
+        self.store_session(Some(session))
+    }
+
+    /// Guarda (o borra) la sesión. Cerrar sesión no borra los datos locales.
+    pub fn store_session(&mut self, session: Option<&Session>) -> Result<()> {
+        notable_sync::save_session(&mut self.store, session).map_err(|e| e.to_string())
+    }
+
+    /// Hora de la última sincronización completa.
+    pub fn last_sync(&self) -> Option<i64> {
+        notable_sync::last_sync(&self.store).ok().flatten()
+    }
+
+    /// Paso 1: sesión y desde cuándo bajar. `None` si no hay sesión.
+    pub fn sync_begin(&self) -> Result<Option<(Session, Option<i64>)>> {
+        let Some(session) = self.session()? else {
+            return Ok(None);
+        };
+        let since = notable_sync::pull_cursor(&self.store).map_err(|e| e.to_string())?;
+        Ok(Some((session, since)))
+    }
+
+    /// Paso 2: aplica lo que bajó (recargando el árbol si algo cambió) y devuelve lo pendiente
+    /// de subir y cuántas filas cambiaron aquí.
+    pub fn sync_apply(&mut self, rows: &[RemoteRow]) -> Result<(Vec<SyncRow>, usize)> {
+        let applied =
+            notable_sync::finish_pull(&mut self.store, rows).map_err(|e| e.to_string())?;
+        if applied > 0 {
+            self.tree = self.store.load_tree().map_err(|e| e.to_string())?;
+        }
+        let pending = self.store.pending().map_err(|e| e.to_string())?;
+        Ok((pending, applied))
+    }
+
+    /// Paso 3: marca como subido lo que se subió.
+    pub fn sync_end(&mut self, pushed: &[SyncRow], now: i64) -> Result<()> {
+        notable_sync::finish_push(&mut self.store, pushed, now).map_err(|e| e.to_string())
+    }
+
+    /// Cantidad de cambios sin subir.
+    pub fn pending_count(&self) -> usize {
+        self.store.pending().map_or(0, |p| p.len())
     }
 
     fn save(&mut self) -> Result<()> {
@@ -802,5 +861,38 @@ mod tests {
             .map(|c| c.name)
             .collect();
         assert_eq!(names, ["B", "A"]);
+    }
+
+    #[test]
+    fn account_steps_without_network() {
+        let mut data = Data::in_memory().unwrap();
+        // Usado sin cuenta: nada que sincronizar, y los cambios quedan pendientes.
+        assert!(data.sync_begin().unwrap().is_none());
+        data.create(None, "Ramo").unwrap();
+        assert_eq!(data.pending_count(), 1);
+
+        let session = Session {
+            access_token: "a".into(),
+            refresh_token: "r".into(),
+            expires_at: 0,
+            user_id: "u1".into(),
+            email: "yo@example.com".into(),
+        };
+        data.signed_in(&session).unwrap();
+        let (stored, since) = data.sync_begin().unwrap().unwrap();
+        assert_eq!(stored, session);
+        assert_eq!(since, None, "primera vez: se baja todo");
+
+        // Bajó nada, se sube lo pendiente y queda al día.
+        let (pending, applied) = data.sync_apply(&[]).unwrap();
+        assert_eq!((pending.len(), applied), (1, 0));
+        data.sync_end(&pending, 123).unwrap();
+        assert_eq!(data.pending_count(), 0);
+        assert_eq!(data.last_sync(), Some(123));
+
+        // Cerrar sesión no borra las notas.
+        data.store_session(None).unwrap();
+        assert!(data.session().unwrap().is_none());
+        assert_eq!(data.screen(None).unwrap().children.len(), 1);
     }
 }

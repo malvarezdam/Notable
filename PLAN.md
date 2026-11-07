@@ -102,13 +102,13 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** se pueden usar todas las funciones de Fases 1–4 desde la interfaz.
 
 ### Fase 8 — Cuenta y sincronización (`notable-sync`)
-- [ ] Requiere que el usuario haya hecho `docs/CONFIGURACION.md` (proyecto Supabase + `schema.sql`).
-- [ ] Login/registro con correo y contraseña (Supabase Auth REST), guardar la sesión y refrescar el token.
-- [ ] Subir los `dirty` (upsert), bajar cambios con `server_updated_at` mayor al último sync; gana el `updated_at` más reciente.
-- [ ] Sincronizar al abrir, al volver a tener internet y cada pocos minutos; indicador de estado.
-- [ ] Primer login en un dispositivo con datos locales: fusionar (no borrar nada).
-- [ ] Manejar proyecto pausado/sin conexión sin romper la app.
-**Listo cuando:** cambios hechos en PC aparecen en otra instalación y viceversa, también tras trabajar sin conexión.
+- [x] Requiere que el usuario haya hecho `docs/CONFIGURACION.md` (proyecto Supabase + `schema.sql`).
+- [x] Login/registro con correo y contraseña (Supabase Auth REST), guardar la sesión y refrescar el token.
+- [x] Subir los `dirty` (upsert), bajar cambios con `server_updated_at` mayor al último sync; gana el `updated_at` más reciente.
+- [x] Sincronizar al abrir, al volver a tener internet y cada pocos minutos; indicador de estado.
+- [x] Primer login en un dispositivo con datos locales: fusionar (no borrar nada).
+- [x] Manejar proyecto pausado/sin conexión sin romper la app.
+**Listo cuando:** cambios hechos en PC aparecen en otra instalación y viceversa, también tras trabajar sin conexión. **Falta:** probarlo con una cuenta real (lo hace el usuario: crear cuenta en la app y confirmar el correo).
 
 ### Fase 9 — Android
 - [ ] Requiere herramientas Android del usuario (ver `docs/CONFIGURACION.md`, parte 3).
@@ -156,3 +156,8 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 7: "Ponderar" es un botón en la barra del nodo; al activarlo por primera vez reparte 100 % en partes iguales (33,33/33,33/33,34) para partir de algo válido. El selector "respecto a" solo aparece con dos o más niveles arriba. Todo lo demás (objetivo, promedio, escala, redondeo, créditos) va en "⚙ Ajustes", y las reglas en un desplegable cerrado dentro de él.
 - 2026-11-07: Fase 7: tema Sistema/Claro/Oscuro con un botón (se guarda en `localStorage`, atributo `data-theme`). En pantallas angostas cada fila se parte en dos líneas. Reordenar: al renombrar una fila aparecen ↑/↓ (comando `shift`).
 - 2026-11-07: Fase 7: probada en el navegador integrado con un puente HTTP temporal sobre el `state.rs` real (fuera del repo), porque el control de escritorio no alcanza la ventana de desarrollo de Tauri.
+- 2026-11-07: Fase 8: proyecto Supabase `augvbftjwvysrozyxvbh` (São Paulo), con "Automatically expose new tables" apagado: `schema.sql` da permisos explícitos solo a `authenticated` y se los quita a `anon`. Confirmación de correo encendida (la app lo explica al crear la cuenta).
+- 2026-11-07: Fase 8: crate `notable-sync` con `ureq` 2 (HTTP bloqueante con rustls, sin runtime async) y `time` para fechas RFC 3339. La red está detrás del trait `Remote`; las pruebas usan un servidor en memoria con la misma regla que el trigger.
+- 2026-11-07: Fase 8: orden bajar → aplicar → subir. Al bajar se retrocede 60 s desde el último `server_updated_at` visto (por transacciones que terminan tarde) y se pagina por posición (un lote comparte la misma hora). Al aplicar gana el `updated_at` mayor; si el resultado no es un árbol válido no se toca nada. Lo subido se marca limpio solo si no cambió mientras subía.
+- 2026-11-07: Fase 8: la sesión (tokens) y el cursor van en la tabla local `meta` (migración 2). Al entrar con una cuenta distinta de la última sincronizada, todo lo local queda pendiente y se fusiona con la cuenta; cerrar sesión no borra nada. Si el refresh falla, se olvida la sesión y se pide volver a entrar.
+- 2026-11-07: Fase 8: un hilo sincroniza al abrir, cada 3 min, 4 s después de cada cambio (juntando varios), al pulsar "Sincronizar ahora" y al volver la conexión (evento `online`); sin conexión reintenta cada 30 s. La red nunca se usa con el candado del estado tomado. La interfaz consulta el estado cada 4 s y recarga la pantalla si llegaron cambios de otro dispositivo.

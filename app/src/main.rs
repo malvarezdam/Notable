@@ -7,8 +7,9 @@ use leptos::ev::KeyboardEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use notable_api::{
-    Change, Details, ExemptionSettings, GoalKind, MinimumSettings, Mode, ReplaceSettings,
-    RulesSettings, Scale, ScaleSettings, Screen, format_grade, format_number, parse_grade,
+    Account, Change, Details, ExemptionSettings, GoalKind, MinimumSettings, Mode, ReplaceSettings,
+    RulesSettings, Scale, ScaleSettings, Screen, SyncStatus, format_grade, format_number,
+    parse_grade,
 };
 use serde::Serialize;
 use serde::de::{DeserializeOwned, IgnoredAny};
@@ -66,6 +67,15 @@ struct ShiftArgs {
 }
 
 #[derive(Serialize)]
+struct NoArgs {}
+
+#[derive(Serialize)]
+struct LoginArgs {
+    email: String,
+    password: String,
+}
+
+#[derive(Serialize)]
 struct UpdateArgs {
     id: String,
     change: Change,
@@ -88,6 +98,10 @@ struct Ctx {
     toast: RwSignal<Option<Toast>>,
     /// Panel de ajustes del nodo actual abierto.
     settings: RwSignal<bool>,
+    /// Estado de la cuenta y la sincronización.
+    account: RwSignal<Account>,
+    /// Panel de cuenta abierto.
+    account_open: RwSignal<bool>,
 }
 
 impl Ctx {
@@ -153,6 +167,21 @@ impl Ctx {
         self.screen
             .with_untracked(|s| s.current.as_ref().map(|c| c.id.clone()))
     }
+
+    /// Pide el estado de la cuenta; si llegaron cambios de otro dispositivo, recarga la pantalla.
+    fn poll_account(self) {
+        spawn_local(async move {
+            if let Ok(account) = call::<_, Account>("account", &NoArgs {}).await {
+                let changed = account.revision != self.account.get_untracked().revision;
+                if self.account.get_untracked() != account {
+                    self.account.set(account);
+                }
+                if changed {
+                    self.reload();
+                }
+            }
+        });
+    }
 }
 
 // ------------------------------------------------------------------ tema
@@ -191,16 +220,29 @@ fn App() -> impl IntoView {
         screen: RwSignal::new(Screen::default()),
         toast: RwSignal::new(None),
         settings: RwSignal::new(false),
+        account: RwSignal::new(Account::default()),
+        account_open: RwSignal::new(false),
     };
     provide_context(ctx);
     ctx.reload();
+    ctx.poll_account();
+    // El estado de la sincronización se consulta seguido (es local y barato).
+    set_interval(move || ctx.poll_account(), Duration::from_secs(4));
+    // Al volver la conexión, sincronizar al tiro.
+    let _online = window_event_listener(leptos::ev::online, move |_| {
+        ctx.run("sync_now", NoArgs {}, |ctx| ctx.poll_account());
+    });
 
     view! {
         <main>
             <header>
                 <Crumbs />
+                <SyncButton />
                 <ThemeButton />
             </header>
+            <Show when=move || ctx.account_open.get()>
+                <AccountPanel />
+            </Show>
             <Summary />
             <Show when=move || ctx.settings.get()>
                 <SettingsPanel />
@@ -209,6 +251,150 @@ fn App() -> impl IntoView {
             <AddForm />
         </main>
         <ToastView />
+    }
+}
+
+/// Indicador de sincronización; abre el panel de cuenta.
+#[component]
+fn SyncButton() -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let look = move || {
+        ctx.account.with(|a| match a.status {
+            SyncStatus::SignedOut => ("☁", "Cuenta", "sync off"),
+            SyncStatus::Syncing => ("⟳", "Sincronizando", "sync busy"),
+            SyncStatus::Synced if a.pending > 0 => ("☁", "Pendiente", "sync busy"),
+            SyncStatus::Synced => ("☁", "Al día", "sync ok"),
+            SyncStatus::Offline => ("☁", "Sin conexión", "sync warn"),
+            SyncStatus::Error => ("⚠", "Error", "sync warn"),
+        })
+    };
+    view! {
+        <button
+            class=move || format!("chip {}", look().2)
+            class:on=move || ctx.account_open.get()
+            title=move || ctx.account.with(|a| a.message.clone())
+            on:click=move |_| ctx.account_open.update(|o| *o = !*o)
+        >
+            <span class="sync-icon">{move || look().0}</span>
+            <span class="sync-text">{move || look().1}</span>
+        </button>
+    }
+}
+
+/// Panel de cuenta: entrar, crear cuenta, estado y cerrar sesión. La cuenta es opcional.
+#[component]
+fn AccountPanel() -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let email = RwSignal::new(String::new());
+    let password = RwSignal::new(String::new());
+    let busy = RwSignal::new(false);
+    let note = RwSignal::new(None::<String>);
+
+    let login = move |sign_up: bool| {
+        let args = LoginArgs {
+            email: email.get_untracked(),
+            password: password.get_untracked(),
+        };
+        if args.email.trim().is_empty() || args.password.is_empty() {
+            note.set(Some("Escribe tu correo y una contraseña.".into()));
+            return;
+        }
+        busy.set(true);
+        note.set(None);
+        spawn_local(async move {
+            let result = if sign_up {
+                call::<_, String>("sign_up", &args).await.map(Some)
+            } else {
+                call::<_, IgnoredAny>("sign_in", &args).await.map(|_| None)
+            };
+            busy.set(false);
+            match result {
+                Ok(message) => {
+                    password.set(String::new());
+                    note.set(message);
+                }
+                Err(e) => note.set(Some(e)),
+            }
+            ctx.poll_account();
+        });
+    };
+    let sign_out = move |_| {
+        spawn_local(async move {
+            if let Err(e) = call::<_, IgnoredAny>("sign_out", &NoArgs {}).await {
+                ctx.error(e);
+            }
+            note.set(None);
+            ctx.poll_account();
+        });
+    };
+    let sync_now = move |_| ctx.run("sync_now", NoArgs {}, |ctx| ctx.poll_account());
+
+    let signed_in = move || ctx.account.with(|a| a.email.is_some());
+    let pending = move || {
+        ctx.account.with(|a| match a.pending {
+            0 => String::new(),
+            1 => "1 cambio por subir.".into(),
+            n => format!("{n} cambios por subir."),
+        })
+    };
+
+    view! {
+        <section class="panel account">
+            <Show
+                when=signed_in
+                fallback=move || {
+                    view! {
+                        <p class="hint">
+                            "Opcional: con una cuenta tus notas se sincronizan entre el PC y el teléfono. "
+                            "Sin cuenta todo funciona igual, solo en este dispositivo."
+                        </p>
+                        <div class="login">
+                            <input
+                                class="text"
+                                type="email"
+                                placeholder="Correo"
+                                autocomplete="email"
+                                prop:value=move || email.get()
+                                on:input=move |ev| email.set(event_target_value(&ev))
+                            />
+                            <input
+                                class="text"
+                                type="password"
+                                placeholder="Contraseña"
+                                autocomplete="current-password"
+                                prop:value=move || password.get()
+                                on:input=move |ev| password.set(event_target_value(&ev))
+                                on:keydown=move |ev: KeyboardEvent| {
+                                    if ev.key() == "Enter" {
+                                        login(false)
+                                    }
+                                }
+                            />
+                            <div class="buttons">
+                                <button class="primary" disabled=move || busy.get() on:click=move |_| login(false)>
+                                    "Entrar"
+                                </button>
+                                <button class="chip" disabled=move || busy.get() on:click=move |_| login(true)>
+                                    "Crear cuenta"
+                                </button>
+                            </div>
+                        </div>
+                        <p class="hint">{move || ctx.account.with(|a| a.message.clone())}</p>
+                    }
+                }
+            >
+                <div class="field">
+                    <span class="label">{move || ctx.account.with(|a| a.email.clone().unwrap_or_default())}</span>
+                    <span class="hint">{move || ctx.account.with(|a| a.message.clone())} " " {pending}</span>
+                </div>
+                <div class="buttons">
+                    <button class="chip" on:click=sync_now>"Sincronizar ahora"</button>
+                    <button class="chip" on:click=sign_out>"Cerrar sesión"</button>
+                </div>
+                <p class="hint">"Al cerrar sesión tus notas se quedan en este dispositivo."</p>
+            </Show>
+            {move || note.get().map(|n| view! { <p class="note">{n}</p> })}
+        </section>
     }
 }
 

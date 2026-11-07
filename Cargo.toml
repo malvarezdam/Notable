@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/notable-core", "crates/notable-store", "crates/notable-api", "app", "app/src-tauri"]
+members = ["crates/notable-core", "crates/notable-store", "crates/notable-sync", "crates/notable-api", "app", "app/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

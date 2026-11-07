@@ -227,6 +227,30 @@ pub enum Change {
     Rules(RulesSettings),
 }
 
+/// Estado de la cuenta y la sincronización (indicador y panel de cuenta).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Account {
+    /// Correo de la sesión iniciada. `None` = sin cuenta (todo funciona igual, solo local).
+    pub email: Option<String>,
+    pub status: SyncStatus,
+    /// Texto corto para mostrar ("Sincronizado hace 2 min", "Sin conexión…").
+    pub message: String,
+    /// Cambios guardados aquí que todavía no se suben.
+    pub pending: usize,
+    /// Sube cada vez que llegan cambios de otro dispositivo (la interfaz recarga la pantalla).
+    pub revision: u64,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SyncStatus {
+    #[default]
+    SignedOut,
+    Syncing,
+    Synced,
+    Offline,
+    Error,
+}
+
 /// Formatea una nota con `decimals` decimales y coma decimal ("4,5"). La nota ya debe venir
 /// redondeada o truncada según su configuración.
 pub fn format_grade(grade: f64, decimals: u8) -> String {
