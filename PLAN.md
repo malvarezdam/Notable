@@ -81,10 +81,10 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** cada regla tiene pruebas encendida y apagada.
 
 ### Fase 5 — Guardado local (`notable-store`)
-- [ ] SQLite con `rusqlite` (feature `bundled`): tabla `items(id, parent_id, data JSON, updated_at, deleted, dirty)`.
-- [ ] Migraciones simples por versión.
-- [ ] Cargar el árbol completo al iniciar; guardar cada cambio al instante (`dirty = 1`).
-- [ ] Exportar/importar a archivo JSON (respaldo manual, sin cuenta).
+- [x] SQLite con `rusqlite` (feature `bundled`): tabla `items(id, parent_id, data JSON, updated_at, deleted, dirty)`.
+- [x] Migraciones simples por versión.
+- [x] Cargar el árbol completo al iniciar; guardar cada cambio al instante (`dirty = 1`).
+- [x] Exportar/importar a archivo JSON (respaldo manual, sin cuenta).
 **Listo cuando:** pruebas de guardar → cerrar → abrir dan el mismo árbol.
 
 ### Fase 6 — App base (Tauri 2 + Leptos)
@@ -145,3 +145,6 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 4: el requisito mínimo está en la escala del hijo y se compara con su nota ya reemplazada; si falla, el padre queda reprobado (`requirements_met`, `passed()`, aviso) y, opcionalmente, su nota se topa. Un hijo reprobado por sus propios mínimos no cumple el mínimo del padre. Sin nota, el requisito está pendiente.
 - 2026-11-07: Fase 4: créditos como campo `credits` en el nodo y agregación `Credits`; un nodo sin créditos usa la suma de sus hijos (el semestre suma sus ramos). Los pesos por créditos se expresan como %.
 - 2026-11-07: Fase 4: la nota mínima prueba todos los valores de la escala (hasta 20 000) en vez de búsqueda binaria, porque algunas reglas (peor nota en ponderado, eximición) hacen que la nota final pueda bajar al subir una nota; "cumplir" exige además los requisitos mínimos. Las evaluaciones que quedan eximidas no aparecen en "lo que falta".
+- 2026-11-07: Fase 5: `notable-store` con `rusqlite` 0.41 (`bundled`, compila SQLite con MSVC sin instalar nada). Base en modo WAL. Migraciones en una lista con `PRAGMA user_version`, cada una en su transacción; una base de una versión más nueva se rechaza en vez de arriesgarla.
+- 2026-11-07: Fase 5: la app llama a `Store::save(&mut tree)` tras cada cambio: guarda los nodos de `take_dirty` en una transacción con `dirty = 1`; si falla, los vuelve a marcar en el árbol (`Tree::mark_dirty`). `updated_at` es en milisegundos y nunca retrocede en una fila (si el reloj se atrasa avanza 1 ms), pensando en "gana el más reciente" de la Fase 8.
+- 2026-11-07: Fase 5: el respaldo es JSON legible (`format: "notable"`, `version`, nodos incluidos los borrados). Importar fusiona sin borrar: el respaldo gana en los ids que comparte y lo local se conserva; si el resultado no es un árbol válido, no se toca nada. Los nodos importados quedan pendientes de sincronizar.

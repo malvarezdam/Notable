@@ -1,0 +1,16 @@
+[package]
+name = "notable-store"
+description = "Guardado local de Notable en SQLite."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+notable-core = { version = "0.1.0", path = "../notable-core" }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+tempfile = "3.27.0"

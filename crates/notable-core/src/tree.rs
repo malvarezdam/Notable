@@ -396,6 +396,16 @@ impl Tree {
         self.dirty.contains(&id)
     }
 
+    /// Vuelve a marcar nodos como cambiados (por ejemplo, si guardarlos falló después de
+    /// [`Tree::take_dirty`]). Ignora los ids que no existen.
+    pub fn mark_dirty(&mut self, ids: impl IntoIterator<Item = NodeId>) {
+        for id in ids {
+            if self.nodes.contains_key(&id) {
+                self.dirty.insert(id);
+            }
+        }
+    }
+
     // ---------------------------------------------------------------- internos
 
     fn node(&self, id: NodeId) -> Result<&Node, TreeError> {
