@@ -22,6 +22,8 @@ pub enum Aggregation {
     Simple,
     /// Promedio ponderado con los pesos de cada hijo (botón "Ponderar").
     Weighted,
+    /// Promedio ponderado por los créditos de cada hijo (semestre, año, carrera).
+    Credits,
 }
 
 /// Cómo se pasa una nota de esta escala a la escala del padre, cuando son distintas.

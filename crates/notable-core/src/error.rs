@@ -48,6 +48,9 @@ pub enum TreeError {
     InvalidNumber,
     /// Configuración de nota inválida.
     Config(ConfigError),
+    /// Regla opcional inválida (número no válido, reemplazo de sí mismo o de algo que no es un
+    /// hermano, o reemplazo y eximición a la vez en el mismo nodo).
+    InvalidRule,
 }
 
 impl fmt::Display for TreeError {
@@ -67,6 +70,7 @@ impl fmt::Display for TreeError {
             Self::EmptyName => f.write_str("el nombre no puede estar vacío"),
             Self::InvalidNumber => f.write_str("número inválido"),
             Self::Config(e) => write!(f, "configuración de nota inválida: {e}"),
+            Self::InvalidRule => f.write_str("regla inválida"),
         }
     }
 }

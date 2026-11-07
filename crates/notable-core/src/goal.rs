@@ -4,17 +4,26 @@
 //! en las evaluaciones que todavía no tienen nota. Si falta más de una, se supone la misma nota
 //! en todas (en escalas distintas, el mismo lugar relativo de cada escala).
 //!
-//! La nota final de un nodo nunca baja al subir una nota que falta (promedios con pesos no
-//! negativos, redondeo y conversión de escala son crecientes), así que basta una búsqueda
-//! binaria sobre los valores que se pueden sacar (la escala con sus decimales). Esto da el
-//! resultado exacto con o sin redondeo intermedio, con truncado o aproximado y con mezcla de
-//! escalas, y la respuesta siempre es una nota que se puede sacar de verdad (4,1 y no 4,03).
+//! Se prueban los valores que se pueden sacar (la escala con sus decimales) y se toma el menor
+//! que cumple, calculando el nodo con todas sus reglas. Así el resultado es exacto con o sin
+//! redondeo intermedio, truncado o aproximado, mezcla de escalas y reglas opcionales, y siempre
+//! es una nota que se puede sacar de verdad (4,1 y no 4,03). "Cumplir" es llegar al objetivo y
+//! no fallar ningún requisito mínimo.
+//!
+//! Con escalas normales hay a lo más unos miles de valores y se prueban todos. Algunas reglas
+//! (eliminar la peor en un promedio ponderado, eximición) hacen que la nota final pueda bajar
+//! al subir una nota, así que recorrerlos todos es lo seguro. En escalas con muchísimos valores
+//! se usa búsqueda binaria, que es exacta cuando la nota final no baja al subir (sin esas
+//! reglas, siempre: promedios, redondeo y conversión de escala son crecientes).
 
 use crate::calc::Calculator;
-use crate::{GradeConfig, NodeId, Tree, TreeError};
+use crate::{Effect, GradeConfig, NodeId, Tree, TreeError};
 
 /// Tolerancia al comparar con el objetivo (ruido de punto flotante).
 const EPSILON: f64 = 1e-9;
+
+/// Hasta cuántos pasos de escala se prueban uno por uno.
+const LINEAR_SEARCH_LIMIT: u64 = 20_000;
 
 /// Qué hace falta para llegar al objetivo de un nodo.
 #[derive(Clone, Debug, PartialEq)]
@@ -57,6 +66,7 @@ impl Tree {
             .map(|leaf| (leaf, calc.config(leaf)))
             .collect();
 
+        // Cumple: llega al objetivo y no falla ningún requisito mínimo.
         let meets = |calc: &mut Calculator, step: Option<u64>| -> bool {
             calc.overrides.clear();
             if let Some(step) = step {
@@ -64,7 +74,8 @@ impl Tree {
                     calc.overrides.insert(leaf, grade);
                 }
             }
-            calc.probe(id).is_some_and(|g| g >= target - EPSILON)
+            let result = calc.probe(id);
+            result.requirements_met && result.grade.is_some_and(|g| g >= target - EPSILON)
         };
 
         let Some((_, first)) = missing.first() else {
@@ -76,31 +87,41 @@ impl Tree {
         };
 
         let last = steps(first);
-        if meets(&mut calc, Some(0)) {
-            return Ok(Some(Requirement::AlreadyMet));
-        }
-        if !meets(&mut calc, Some(last)) {
-            return Ok(Some(Requirement::Unreachable));
-        }
+        let found = if last <= LINEAR_SEARCH_LIMIT {
+            // Recorrer todos los valores: no supone nada sobre la forma del cálculo.
+            (0..=last).find(|&k| meets(&mut calc, Some(k)))
+        } else {
+            binary_search(last, |k| meets(&mut calc, Some(k)))
+        };
+        let step = match found {
+            None => return Ok(Some(Requirement::Unreachable)),
+            Some(0) => return Ok(Some(Requirement::AlreadyMet)),
+            Some(step) => step,
+        };
 
-        // Menor paso que cumple: `low` no cumple, `high` sí.
-        let (mut low, mut high) = (0, last);
-        while high - low > 1 {
-            let mid = low + (high - low) / 2;
-            if meets(&mut calc, Some(mid)) {
-                high = mid;
-            } else {
-                low = mid;
-            }
-        }
-
-        let missing: Vec<MissingGrade> = assumed(&missing, high)
+        // Las evaluaciones que quedan eximidas con esas notas no hace falta rendirlas.
+        meets(&mut calc, Some(step));
+        let all: Vec<MissingGrade> = assumed(&missing, step)
             .map(|(node, grade)| MissingGrade { node, grade })
             .collect();
+        let counting: Vec<MissingGrade> = all
+            .iter()
+            .copied()
+            .filter(|m| !self.exempt_below(&calc, m.node, id))
+            .collect();
+        let missing = if counting.is_empty() { all } else { counting };
         Ok(Some(Requirement::Needed {
             grade: missing[0].grade,
             missing,
         }))
+    }
+
+    /// `true` si `leaf` o algún nodo entre él y `top` (sin incluir `top`) quedó eximido.
+    fn exempt_below(&self, calc: &Calculator, leaf: NodeId, top: NodeId) -> bool {
+        std::iter::once(leaf)
+            .chain(self.ancestors(leaf))
+            .take_while(|n| *n != top)
+            .any(|n| calc.effect(n) == Some(Effect::Exempt))
     }
 
     /// Hojas visibles sin nota dentro de `id` (incluido él mismo), en orden del árbol.
@@ -119,6 +140,28 @@ impl Tree {
         }
         found
     }
+}
+
+/// Menor `k` en `0..=last` con `meets(k)`, suponiendo que `meets` nunca pasa de `true` a
+/// `false` al subir `k`.
+fn binary_search(last: u64, mut meets: impl FnMut(u64) -> bool) -> Option<u64> {
+    if meets(0) {
+        return Some(0);
+    }
+    if !meets(last) {
+        return None;
+    }
+    // `low` no cumple, `high` sí.
+    let (mut low, mut high) = (0, last);
+    while high - low > 1 {
+        let mid = low + (high - low) / 2;
+        if meets(mid) {
+            high = mid;
+        } else {
+            low = mid;
+        }
+    }
+    Some(high)
 }
 
 /// Cantidad de pasos de la escala según sus decimales (de 1,0 a 7,0 con un decimal: 60).

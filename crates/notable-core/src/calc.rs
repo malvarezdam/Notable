@@ -7,11 +7,14 @@
 //! - Si un hijo usa otra escala, su nota se convierte a la del padre.
 //! - Se redondea solo donde el usuario lo pide ([`crate::Node::round_result`] o
 //!   [`GradeConfig::round_every_level`]); por defecto no se redondea ningún nivel.
+//! - Las reglas opcionales ([`crate::Rules`]) se aplican al combinar los hijos.
 //! - Los problemas de datos son avisos ([`Warning`]), nunca errores: siempre hay resultado.
 
 use std::collections::HashMap;
 
-use crate::{Aggregation, GradeConfig, NodeId, Tree};
+use crate::{
+    Aggregation, Effect, Exemption, GradeConfig, Minimum, NodeId, ReplaceTarget, Replacement, Tree,
+};
 
 /// Tolerancia para comparar sumas de pesos con 100.
 const EPSILON: f64 = 1e-6;
@@ -24,8 +27,14 @@ pub struct NodeResult {
     pub grade: Option<f64>,
     /// La nota antes de redondear (igual a `grade` si no se redondea).
     pub unrounded: Option<f64>,
-    /// `true` si todas las hojas que cuelgan del nodo tienen nota (la nota ya es final).
+    /// `true` si todas las hojas que cuentan tienen nota (la nota ya es final). Las eximidas y
+    /// los reemplazos que no cuentan como nota propia no hacen falta.
     pub complete: bool,
+    /// `false` si algún hijo con nota no llega a su mínimo ([`crate::Minimum`]): el nodo queda
+    /// reprobado aunque su promedio alcance.
+    pub requirements_met: bool,
+    /// Qué le hizo una regla opcional del padre a este nodo (eliminado, reemplazado, eximido…).
+    pub effect: Option<Effect>,
     /// Peso del nodo dentro de su padre en %, ya convertido si se expresó respecto a otro
     /// ancestro. Es 0 si el padre pondera y el nodo no tiene peso. Para el promedio simple es
     /// 100 / cantidad de hermanos.
@@ -34,6 +43,15 @@ pub struct NodeResult {
     pub share: f64,
     /// Configuración de nota que usa el nodo (propia o heredada).
     pub config: GradeConfig,
+}
+
+impl NodeResult {
+    /// Aprobado: la nota alcanza la de aprobación y se cumplen los requisitos mínimos. `None` si
+    /// todavía no hay nota.
+    pub fn passed(&self) -> Option<bool> {
+        self.grade
+            .map(|g| g >= self.config.pass - GRADE_EPSILON && self.requirements_met)
+    }
 }
 
 /// Un aviso del cálculo. No impide calcular; la interfaz lo muestra junto al nodo.
@@ -56,6 +74,13 @@ pub enum Warning {
     GradeOutOfScale { node: NodeId, grade: f64 },
     /// Nota objetivo fuera de la escala.
     TargetOutOfScale { node: NodeId, target: f64 },
+    /// Un hijo de un nodo que promedia por créditos no tiene créditos; cuenta como 0.
+    MissingCredits { node: NodeId },
+    /// El nodo reemplaza a otro que ya no es un hermano normal (se movió, se borró, o es
+    /// eximible o reemplazo); no se reemplaza nada.
+    InvalidReplaceTarget { node: NodeId },
+    /// El nodo no llega a su nota mínima (`minimum`, en su escala): el padre queda reprobado.
+    MinimumNotMet { node: NodeId, minimum: f64 },
 }
 
 impl Warning {
@@ -68,7 +93,10 @@ impl Warning {
             | Self::InvalidWeightBase { node }
             | Self::UnconvertibleWeight { node }
             | Self::GradeOutOfScale { node, .. }
-            | Self::TargetOutOfScale { node, .. } => *node,
+            | Self::TargetOutOfScale { node, .. }
+            | Self::MissingCredits { node }
+            | Self::InvalidReplaceTarget { node }
+            | Self::MinimumNotMet { node, .. } => *node,
         }
     }
 }
@@ -181,12 +209,14 @@ impl<'a> Calculator<'a> {
         self.layout[&id].config
     }
 
-    /// Calcula la nota de `id` con las notas supuestas actuales, sin acumular avisos.
-    pub(crate) fn probe(&mut self, id: NodeId) -> Option<f64> {
-        let grade = self.compute(id).grade;
+    /// Calcula `id` con las notas supuestas actuales. Los resultados del subárbol quedan
+    /// disponibles (ver [`Calculator::effect`]) hasta el siguiente cálculo; los avisos se
+    /// descartan.
+    pub(crate) fn probe(&mut self, id: NodeId) -> NodeResult {
         self.results.clear();
+        let result = self.compute(id);
         self.warnings.clear();
-        grade
+        result
     }
 
     fn run(mut self) -> Evaluation {
@@ -216,22 +246,36 @@ impl<'a> Calculator<'a> {
         let mut uses_base = false;
 
         for child in &children {
-            let weight = if weighted {
-                match child.weight {
+            let weight = match parent_node.aggregation {
+                Aggregation::Weighted => match child.weight {
                     Some(w) => self.convert_weight(child.id, parent, w, &mut uses_base),
                     None => {
                         self.warnings
                             .push(Warning::MissingWeight { node: child.id });
                         0.0
                     }
-                }
-            } else {
-                100.0 / children.len() as f64
+                },
+                Aggregation::Credits => match self.tree.effective_credits(child.id) {
+                    Some(c) => c,
+                    None => {
+                        self.warnings
+                            .push(Warning::MissingCredits { node: child.id });
+                        0.0
+                    }
+                },
+                Aggregation::Simple => 100.0 / children.len() as f64,
             };
             weights.push(weight);
         }
 
-        let total: f64 = weights.iter().sum();
+        let mut total: f64 = weights.iter().sum();
+        if parent_node.aggregation == Aggregation::Credits && total > 0.0 {
+            // Los créditos se expresan como % para que `weight` signifique lo mismo siempre.
+            for w in &mut weights {
+                *w = *w * 100.0 / total;
+            }
+            total = 100.0;
+        }
         if weighted && (total - 100.0).abs() > EPSILON {
             self.warnings.push(if uses_base {
                 Warning::ContradictoryWeights {
@@ -314,7 +358,7 @@ impl<'a> Calculator<'a> {
             });
         }
 
-        let (unrounded, complete) = if children.is_empty() {
+        let combined = if children.is_empty() {
             if let Some(g) = node.grade
                 && !config.contains(g)
             {
@@ -322,23 +366,16 @@ impl<'a> Calculator<'a> {
                     .push(Warning::GradeOutOfScale { node: id, grade: g });
             }
             let grade = node.grade.or_else(|| self.overrides.get(&id).copied());
-            (grade, grade.is_some())
-        } else {
-            let mut sum = 0.0;
-            let mut weight_sum = 0.0;
-            let mut complete = true;
-            for child in children {
-                let r = self.compute(child);
-                complete &= r.complete;
-                if let Some(g) = r.grade {
-                    let g = r.config.convert_to(g, &config);
-                    sum += r.weight * g;
-                    weight_sum += r.weight;
-                }
+            Combined {
+                average: grade,
+                complete: grade.is_some(),
+                requirements_met: true,
+                cap: None,
             }
-            let average = (weight_sum > 0.0).then(|| sum / weight_sum);
-            (average, complete)
+        } else {
+            self.combine(id, &children, &config)
         };
+        let unrounded = combined.average;
 
         let is_computed = !self.tree.is_leaf(id);
         // Un nodo con objetivo redondea su nota final (salvo que diga lo contrario), porque es la
@@ -347,16 +384,23 @@ impl<'a> Calculator<'a> {
             && node
                 .round_result
                 .unwrap_or(config.round_every_level || node.target.is_some());
-        let grade = if round {
+        let mut grade = if round {
             unrounded.map(|g| config.apply_rounding(g))
         } else {
             unrounded
         };
+        let mut unrounded = unrounded;
+        if let Some(cap) = combined.cap {
+            grade = grade.map(|g| g.min(cap));
+            unrounded = unrounded.map(|g| g.min(cap));
+        }
 
         let result = NodeResult {
             grade,
             unrounded,
-            complete,
+            complete: combined.complete,
+            requirements_met: combined.requirements_met,
+            effect: None,
             weight: layout.weight,
             share: layout.share,
             config,
@@ -364,4 +408,197 @@ impl<'a> Calculator<'a> {
         self.results.insert(id, result);
         result
     }
+
+    /// Combina las notas de los hijos de `parent` aplicando las reglas opcionales (ver
+    /// [`crate::rules`] para el orden).
+    fn combine(&mut self, parent: NodeId, children: &[NodeId], config: &GradeConfig) -> Combined {
+        let tree = self.tree;
+        let mut regular: Vec<Entry> = Vec::new();
+        let mut replacers: Vec<(Entry, Replacement)> = Vec::new();
+        let mut exemptable: Vec<(Entry, Exemption)> = Vec::new();
+        // Hijos con requisito mínimo: (id, mínimo en la escala del padre, regla, requisitos
+        // del hijo cumplidos).
+        let mut minimums: Vec<(NodeId, f64, Minimum, bool)> = Vec::new();
+
+        for &child in children {
+            let r = self.compute(child);
+            let rules = tree.get(child).expect("visible node").rules;
+            if let Some(min) = rules.minimum {
+                let in_parent = r.config.convert_to(min.grade, config);
+                minimums.push((child, in_parent, min, r.requirements_met));
+            }
+            let entry = Entry {
+                id: child,
+                grade: r.grade.map(|g| r.config.convert_to(g, config)),
+                weight: r.weight,
+                complete: r.complete,
+            };
+            match (rules.replaces, rules.exemption) {
+                (Some(rep), _) => replacers.push((entry, rep)),
+                (None, Some(ex)) => exemptable.push((entry, ex)),
+                (None, None) => regular.push(entry),
+            }
+        }
+
+        // 1. Reemplazos.
+        let mut replaced = vec![false; regular.len()];
+        let mut counted: Vec<Entry> = Vec::new();
+        let mut complete = true;
+        for (entry, rep) in &replacers {
+            if rep.counts_itself {
+                complete &= entry.complete;
+                counted.push(*entry);
+            }
+            let Some(g) = entry.grade else { continue };
+            let index = match rep.target {
+                ReplaceTarget::Lowest => regular
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, e)| !replaced[*i] && e.grade.is_some())
+                    .min_by(|(_, a), (_, b)| a.grade.partial_cmp(&b.grade).expect("finite"))
+                    .map(|(i, _)| i),
+                ReplaceTarget::Node(target) => match regular.iter().position(|e| e.id == target) {
+                    Some(i) if !replaced[i] => Some(i),
+                    Some(_) => None,
+                    None => {
+                        self.warnings
+                            .push(Warning::InvalidReplaceTarget { node: entry.id });
+                        None
+                    }
+                },
+            };
+            let applied = index.filter(|&i| match regular[i].grade {
+                None => true,
+                Some(old) => !rep.only_if_better || g > old + GRADE_EPSILON,
+            });
+            match applied {
+                Some(i) => {
+                    let target = &mut regular[i];
+                    target.grade = Some(g);
+                    target.complete = entry.complete;
+                    replaced[i] = true;
+                    self.set_effect(target.id, Effect::Replaced { by: entry.id });
+                    let target = target.id;
+                    self.set_effect(entry.id, Effect::Replaces { node: target });
+                }
+                None => self.set_effect(entry.id, Effect::Unused),
+            }
+        }
+
+        // 2. Eliminar las peores (al menos una nota queda).
+        let drop = tree.get(parent).expect("visible node").rules.drop_lowest as usize;
+        let mut graded: Vec<usize> = (0..regular.len())
+            .filter(|&i| regular[i].grade.is_some())
+            .collect();
+        let drop = drop.min(graded.len().saturating_sub(1));
+        graded.sort_by(|&a, &b| {
+            regular[a]
+                .grade
+                .partial_cmp(&regular[b].grade)
+                .expect("finite")
+                .then(a.cmp(&b))
+        });
+        let dropped: Vec<usize> = graded.into_iter().take(drop).collect();
+        for (i, entry) in regular.iter().enumerate() {
+            complete &= entry.complete;
+            if dropped.contains(&i) {
+                self.set_effect(entry.id, Effect::Dropped);
+            } else {
+                counted.push(*entry);
+            }
+        }
+
+        // 3. Eximición, según la nota de presentación (lo anterior).
+        let presentation = average(&counted);
+        for (entry, ex) in &exemptable {
+            let exempt = presentation.is_some_and(|p| p >= ex.threshold - GRADE_EPSILON);
+            let keep = !exempt
+                || (ex.keep_if_better
+                    && entry.grade.is_some()
+                    && average(&[counted.as_slice(), &[*entry]].concat()) > average(&counted));
+            if keep {
+                complete &= entry.complete;
+                counted.push(*entry);
+            } else {
+                self.set_effect(entry.id, Effect::Exempt);
+            }
+        }
+
+        // 4. Promedio.
+        let avg = average(&counted);
+
+        // 5. Requisitos mínimos (con la nota ya reemplazada, si se reemplazó).
+        let effective: HashMap<NodeId, Option<f64>> = regular
+            .iter()
+            .chain(replacers.iter().map(|(e, _)| e))
+            .chain(exemptable.iter().map(|(e, _)| e))
+            .map(|e| (e.id, e.grade))
+            .collect();
+        let mut requirements_met = true;
+        let mut cap: Option<f64> = None;
+        for (child, minimum, rule, child_met) in minimums {
+            if self.results.get(&child).and_then(|r| r.effect) == Some(Effect::Exempt) {
+                continue;
+            }
+            let Some(g) = effective[&child] else { continue };
+            if g < minimum - GRADE_EPSILON || !child_met {
+                requirements_met = false;
+                self.warnings.push(Warning::MinimumNotMet {
+                    node: child,
+                    minimum: rule.grade,
+                });
+                if let Some(c) = rule.cap {
+                    cap = Some(cap.map_or(c, |old: f64| old.min(c)));
+                }
+            }
+        }
+
+        Combined {
+            average: avg,
+            complete,
+            requirements_met,
+            cap,
+        }
+    }
+
+    fn set_effect(&mut self, id: NodeId, effect: Effect) {
+        if let Some(r) = self.results.get_mut(&id) {
+            r.effect = Some(effect);
+        }
+    }
+
+    /// Efecto de una regla sobre un nodo en el último cálculo.
+    pub(crate) fn effect(&self, id: NodeId) -> Option<Effect> {
+        self.results.get(&id).and_then(|r| r.effect)
+    }
+}
+
+/// Tolerancia para comparar notas (ruido de punto flotante).
+const GRADE_EPSILON: f64 = 1e-9;
+
+/// Un hijo, con su nota ya en la escala del padre.
+#[derive(Clone, Copy)]
+struct Entry {
+    id: NodeId,
+    grade: Option<f64>,
+    weight: f64,
+    complete: bool,
+}
+
+/// Resultado de combinar los hijos de un nodo (antes de redondear).
+struct Combined {
+    average: Option<f64>,
+    complete: bool,
+    requirements_met: bool,
+    /// Tope por requisitos mínimos no cumplidos.
+    cap: Option<f64>,
+}
+
+/// Promedio ponderado de las entradas con nota.
+fn average(entries: &[Entry]) -> Option<f64> {
+    let (sum, weight) = entries
+        .iter()
+        .filter_map(|e| e.grade.map(|g| (e.weight * g, e.weight)))
+        .fold((0.0, 0.0), |(s, w), (eg, ew)| (s + eg, w + ew));
+    (weight > 0.0).then(|| sum / weight)
 }

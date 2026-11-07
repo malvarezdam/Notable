@@ -72,12 +72,12 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** pruebas de casos borde (exacto en el límite, truncado vs aproximado, ya cumplido, imposible).
 
 ### Fase 4 — Reglas opcionales (todas apagadas por defecto)
-- [ ] Eliminar la(s) peor(es) nota(s) de un nodo.
-- [ ] Examen/nota que reemplaza a la peor nota (o a una nota elegida).
-- [ ] Eximición: si el promedio ≥ X, una evaluación (p. ej. examen) no se rinde/no cuenta.
-- [ ] Requisito mínimo: "este nodo debe tener ≥ X para aprobar el padre" (muestra aviso/estado reprobado).
-- [ ] Promedio de semestre/año/carrera ponderado por créditos (campo "créditos" opcional en el ramo).
-- [ ] Integrar las reglas con la Fase 3 (la nota mínima las respeta).
+- [x] Eliminar la(s) peor(es) nota(s) de un nodo.
+- [x] Examen/nota que reemplaza a la peor nota (o a una nota elegida).
+- [x] Eximición: si el promedio ≥ X, una evaluación (p. ej. examen) no se rinde/no cuenta.
+- [x] Requisito mínimo: "este nodo debe tener ≥ X para aprobar el padre" (muestra aviso/estado reprobado).
+- [x] Promedio de semestre/año/carrera ponderado por créditos (campo "créditos" opcional en el ramo).
+- [x] Integrar las reglas con la Fase 3 (la nota mínima las respeta).
 **Listo cuando:** cada regla tiene pruebas encendida y apagada.
 
 ### Fase 5 — Guardado local (`notable-store`)
@@ -140,3 +140,8 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 3: el objetivo (`target`) va en la escala del nodo. Un nodo con objetivo redondea su nota final por defecto (es la que se compara); `round_result = Some(false)` lo apaga. Un objetivo fuera de escala se permite, con aviso (`TargetOutOfScale`), y resulta inalcanzable.
 - 2026-11-07: Fase 3: la nota mínima siempre se busca (búsqueda binaria) sobre los valores que se pueden sacar en la escala según sus decimales, en vez de despejar: como la nota final nunca baja al subir una nota, el resultado es exacto con o sin redondeo intermedio, truncado o aproximado, `ByPass` y anidación, y siempre es una nota real (4,1 y no 4,03). Cuesta unas pocas decenas de cálculos del subárbol.
 - 2026-11-07: Fase 3: `YaCumplido` significa asegurado (se cumple aunque lo que falta salga con la nota mínima); `NoAlcanzable` incluye "ya no falta nada y no se cumplió". Si faltan varias notas se supone el mismo lugar relativo en cada escala (la misma nota si comparten escala); se informa la nota de cada una en su escala.
+- 2026-11-07: Fase 4: las reglas van en `Rules` dentro de cada nodo (se omite del JSON si está apagado). "Eliminar las peores" se pone en el padre; reemplazo, eximición y mínimo en el hijo afectado. Orden: reemplazos → eliminar peores → eximición (con la nota de presentación resultante) → promedio → requisitos mínimos. Las eximibles y los reemplazos no se eliminan ni son reemplazados. Un nodo no puede ser reemplazo y eximible a la vez.
+- 2026-11-07: Fase 4: el reemplazo por defecto solo actúa si mejora y no cuenta como nota propia (ambas cosas configurables); con un hermano elegido sin nota, la toma (prueba recuperativa). "La peor" es la nota más baja, también en ponderado. Eximido, la evaluación no cuenta aunque tenga nota, salvo la opción "contarla si mejora".
+- 2026-11-07: Fase 4: el requisito mínimo está en la escala del hijo y se compara con su nota ya reemplazada; si falla, el padre queda reprobado (`requirements_met`, `passed()`, aviso) y, opcionalmente, su nota se topa. Un hijo reprobado por sus propios mínimos no cumple el mínimo del padre. Sin nota, el requisito está pendiente.
+- 2026-11-07: Fase 4: créditos como campo `credits` en el nodo y agregación `Credits`; un nodo sin créditos usa la suma de sus hijos (el semestre suma sus ramos). Los pesos por créditos se expresan como %.
+- 2026-11-07: Fase 4: la nota mínima prueba todos los valores de la escala (hasta 20 000) en vez de búsqueda binaria, porque algunas reglas (peor nota en ponderado, eximición) hacen que la nota final pueda bajar al subir una nota; "cumplir" exige además los requisitos mínimos. Las evaluaciones que quedan eximidas no aparecen en "lo que falta".

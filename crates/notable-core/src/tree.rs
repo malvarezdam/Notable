@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use crate::{Aggregation, GradeConfig, Node, NodeId, TreeError};
+use crate::{Aggregation, GradeConfig, Node, NodeId, ReplaceTarget, Replacement, Rules, TreeError};
 
 /// El árbol completo en memoria.
 ///
@@ -329,6 +329,59 @@ impl Tree {
         }
         self.modify(id, |n| n.target = target);
         Ok(())
+    }
+
+    /// Asigna o quita (`None`) los créditos del nodo. Deben ser ≥ 0.
+    pub fn set_credits(&mut self, id: NodeId, credits: Option<f64>) -> Result<(), TreeError> {
+        self.alive(id)?;
+        if credits.is_some_and(|c| !c.is_finite() || c < 0.0) {
+            return Err(TreeError::InvalidNumber);
+        }
+        self.modify(id, |n| n.credits = credits);
+        Ok(())
+    }
+
+    /// Define las reglas opcionales del nodo (`Rules::default()` las apaga todas).
+    pub fn set_rules(&mut self, id: NodeId, rules: Rules) -> Result<(), TreeError> {
+        self.alive(id)?;
+        let finite = |x: f64| x.is_finite();
+        if rules.exemption.is_some_and(|e| !finite(e.threshold))
+            || rules
+                .minimum
+                .is_some_and(|m| !finite(m.grade) || m.cap.is_some_and(|c| !finite(c)))
+        {
+            return Err(TreeError::InvalidRule);
+        }
+        if rules.replaces.is_some() && rules.exemption.is_some() {
+            return Err(TreeError::InvalidRule);
+        }
+        if let Some(Replacement {
+            target: ReplaceTarget::Node(target),
+            ..
+        }) = rules.replaces
+        {
+            let parent = self.nodes[&id].parent;
+            let sibling = target != id
+                && self.is_alive(target)
+                && self.nodes.get(&target).is_some_and(|t| t.parent == parent);
+            if !sibling {
+                return Err(TreeError::InvalidRule);
+            }
+        }
+        self.modify(id, |n| n.rules = rules);
+        Ok(())
+    }
+
+    /// Créditos del nodo: los propios o, si no tiene, la suma de los de sus hijos visibles
+    /// (`None` si nadie debajo tiene créditos).
+    pub fn effective_credits(&self, id: NodeId) -> Option<f64> {
+        let node = self.nodes.get(&id)?;
+        if node.credits.is_some() {
+            return node.credits;
+        }
+        self.children(Some(id))
+            .filter_map(|c| self.effective_credits(c.id))
+            .fold(None, |acc, c| Some(acc.unwrap_or(0.0) + c))
     }
 
     // ---------------------------------------------------------------- cambios pendientes

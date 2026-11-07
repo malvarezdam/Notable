@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{Aggregation, GradeConfig, NodeId};
+use crate::{Aggregation, GradeConfig, NodeId, Rules};
 
 /// Un nodo del árbol. Carrera, año, semestre, ramo, evaluación… son solo nombres que pone el
 /// usuario: todos son nodos.
@@ -39,6 +39,13 @@ pub struct Node {
     /// calcula la nota mínima necesaria (ver [`crate::Tree::requirement`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target: Option<f64>,
+    /// Créditos opcionales (normalmente en el ramo), para promediar por créditos. Un nodo sin
+    /// créditos propios usa la suma de los de sus hijos.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credits: Option<f64>,
+    /// Reglas opcionales (todas apagadas por defecto).
+    #[serde(default, skip_serializing_if = "Rules::is_off")]
+    pub rules: Rules,
     /// Cómo se combinan los hijos de este nodo.
     #[serde(default)]
     pub aggregation: Aggregation,
@@ -63,6 +70,8 @@ impl Node {
             weight_base: None,
             round_result: None,
             target: None,
+            credits: None,
+            rules: Rules::default(),
             aggregation: Aggregation::default(),
             config: None,
             deleted: false,

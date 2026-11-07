@@ -8,6 +8,7 @@ mod error;
 mod goal;
 mod id;
 mod node;
+mod rules;
 mod tree;
 
 pub use calc::{Evaluation, NodeResult, Warning};
@@ -16,4 +17,5 @@ pub use error::{ConfigError, TreeError};
 pub use goal::{MissingGrade, Requirement};
 pub use id::NodeId;
 pub use node::Node;
+pub use rules::{Effect, Exemption, Minimum, ReplaceTarget, Replacement, Rules};
 pub use tree::Tree;
