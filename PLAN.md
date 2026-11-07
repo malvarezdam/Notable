@@ -88,9 +88,9 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 **Listo cuando:** pruebas de guardar → cerrar → abrir dan el mismo árbol.
 
 ### Fase 6 — App base (Tauri 2 + Leptos)
-- [ ] Proyecto Tauri 2 en `app/` usando los crates; comandos Tauri para leer/modificar el árbol.
-- [ ] Pantalla principal: navegación por el árbol (lista + migas de pan), crear/renombrar/borrar nodos, ingresar notas.
-- [ ] Cada nodo muestra su promedio actual.
+- [x] Proyecto Tauri 2 en `app/` usando los crates; comandos Tauri para leer/modificar el árbol.
+- [x] Pantalla principal: navegación por el árbol (lista + migas de pan), crear/renombrar/borrar nodos, ingresar notas.
+- [x] Cada nodo muestra su promedio actual.
 **Listo cuando:** en Windows se puede armar un ramo completo e ingresar notas, y se guarda al cerrar.
 
 ### Fase 7 — UI completa
@@ -148,3 +148,7 @@ decimales, truncar/aproximar, redondear en este nivel sí/no), objetivo opcional
 - 2026-11-07: Fase 5: `notable-store` con `rusqlite` 0.41 (`bundled`, compila SQLite con MSVC sin instalar nada). Base en modo WAL. Migraciones en una lista con `PRAGMA user_version`, cada una en su transacción; una base de una versión más nueva se rechaza en vez de arriesgarla.
 - 2026-11-07: Fase 5: la app llama a `Store::save(&mut tree)` tras cada cambio: guarda los nodos de `take_dirty` en una transacción con `dirty = 1`; si falla, los vuelve a marcar en el árbol (`Tree::mark_dirty`). `updated_at` es en milisegundos y nunca retrocede en una fila (si el reloj se atrasa avanza 1 ms), pensando en "gana el más reciente" de la Fase 8.
 - 2026-11-07: Fase 5: el respaldo es JSON legible (`format: "notable"`, `version`, nodos incluidos los borrados). Importar fusiona sin borrar: el respaldo gana en los ids que comparte y lo local se conserva; si el resultado no es un árbol válido, no se toca nada. Los nodos importados quedan pendientes de sincronizar.
+- 2026-11-07: Fase 6: Tauri 2 (2.12) + Leptos 0.8 en modo CSR, compilado con Trunk (puerto 1420); se usan las versiones estables, no las alfas de Tauri 3 / Leptos 0.9. `app/` es la interfaz (`notable-ui`, WebAssembly) y `app/src-tauri/` la app (`notable-app`). Ambas están en el workspace.
+- 2026-11-07: Fase 6: crate `notable-api` con los tipos que se intercambian (`Screen`, `Item`, `Crumb`, `Scale`): datos ya listos para mostrar (nota formateada con coma decimal), así la interfaz no calcula nada y no arrastra `uuid` a WebAssembly. La lógica de la app vive en `src-tauri/src/state.rs` sin depender de Tauri (se prueba directo); los comandos son `screen`, `create`, `rename`, `delete`, `restore` y `set_grade`, y cada cambio se guarda al instante en `%APPDATA%\io.github.malvarezdam.notable\notable.db`.
+- 2026-11-07: Fase 6: borrar no pide confirmación: muestra "Se borró «X» · Deshacer" durante 8 s (el borrado es lógico). Si la base no abre, la app no toca nada y cada comando muestra el error. Las filas se identifican por id y se actualizan en el lugar (si no, el foco se perdía al pasar de una nota a otra); Enter en una nota salta a la siguiente y los botones ✎/🗑 quedan fuera del orden de Tab.
+- 2026-11-07: Fase 6: CSP desactivada (`csp: null`) por ahora: la app no carga nada remoto. Revisar en la Fase 10 (Trunk inyecta un script en línea que una CSP estricta bloquearía). Íconos generados con `cargo tauri icon app/icon.svg` (sin los de iOS).

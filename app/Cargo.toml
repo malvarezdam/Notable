@@ -1,0 +1,17 @@
+[package]
+name = "notable-ui"
+description = "Interfaz de Notable (Leptos, compila a WebAssembly)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+console_error_panic_hook = "0.1.7"
+leptos = { version = "0.8", features = ["csr"] }
+notable-api = { path = "../crates/notable-api" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde-wasm-bindgen = "0.6.5"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Document", "Element", "EventTarget", "HtmlElement", "Node", "NodeList"] }

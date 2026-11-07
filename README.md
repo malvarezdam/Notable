@@ -12,9 +12,27 @@ Gestor de notas y calificaciones para PC y Android, escrito en Rust.
 
 ## Compilar
 
+Pruebas (cálculo, guardado y app):
+
 ```bash
-cargo test
+cargo test --workspace
 ```
+
+La app (Tauri 2 + Leptos) necesita una vez:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install trunk
+cargo install tauri-cli --version "^2" --locked
+```
+
+Y luego, desde la carpeta `app/`:
+
+```bash
+cargo tauri dev
+```
+
+Los datos se guardan en `%APPDATA%\io.github.malvarezdam.notable\notable.db` (Windows).
 
 ## Licencia
 

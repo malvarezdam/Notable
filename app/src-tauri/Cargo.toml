@@ -1,0 +1,23 @@
+[package]
+name = "notable-app"
+description = "App de escritorio y Android de Notable (Tauri 2)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# El nombre lleva `_lib` para no chocar con el binario en Windows.
+name = "notable_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+notable-api = { path = "../../crates/notable-api" }
+notable-core = { path = "../../crates/notable-core" }
+notable-store = { path = "../../crates/notable-store" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+tauri = { version = "2", features = [] }
