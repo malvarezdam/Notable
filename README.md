@@ -28,7 +28,7 @@ Descarga la última versión desde [Releases](https://github.com/malvarezdam/Not
 
 | Sistema | Archivo |
 |---|---|
-| Windows | `Notable_…_x64-setup.exe` (o el `.msi`) |
+| Windows | `Notable_…_x64-setup.exe` (instalador; o el `.msi`), o `Notable_…_x64-portable.exe` para usarlo sin instalar |
 | Linux | `.AppImage` (dale permiso de ejecución) o `.deb` |
 | Android | `Notable-…-android-arm64.apk` (casi todos los teléfonos; `…-android-arm.apk` para los muy antiguos) |
 
