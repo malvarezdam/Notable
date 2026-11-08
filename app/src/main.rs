@@ -282,6 +282,7 @@ fn App() -> impl IntoView {
     view! {
         <main>
             <header>
+                <BackButton />
                 <Crumbs />
                 <SyncButton />
                 <ThemeButton />
@@ -682,6 +683,28 @@ fn ThemeButton() -> impl IntoView {
         <button class="icon theme" title=move || THEMES[index.get()].1 on:click=next>
             {icon}
         </button>
+    }
+}
+
+/// Sube un nivel desde la carpeta actual; en Inicio no se muestra.
+#[component]
+fn BackButton() -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let go_back = move |_| {
+        let parent = ctx.screen.with(|s| {
+            s.path
+                .len()
+                .checked_sub(2)
+                .map(|index| s.path[index].id.clone())
+        });
+        ctx.go(parent);
+    };
+    view! {
+        <Show when=move || ctx.screen.with(|s| !s.path.is_empty())>
+            <button class="back" title="Volver" aria-label="Volver" on:click=go_back>
+                "←"
+            </button>
+        </Show>
     }
 }
 
