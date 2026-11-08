@@ -10,18 +10,49 @@ tus promedios y cuánto necesitas para llegar a la nota que buscas.
   <img src="docs/capturas/cuenta.png" alt="Panel de cuenta opcional" width="280">
 </p>
 
-- **Local primero:** funciona completo sin internet y sin cuenta.
-- **Simple por defecto:** los promedios son simples; el botón **Ponderar** activa pesos (también
-  "vale 20 % del ramo", respecto a otro nivel).
-- **Todo configurable:** escala (1,0–7,0, 0–100 o la que quieras), decimales, aproximar o truncar,
-  redondear en cada nivel, conversión entre escalas.
-- **Nota objetivo:** "Necesitas 4,3 en el Certamen 2".
-- **Reglas opcionales** (apagadas hasta que las actives): eliminar las peores notas, examen que
-  reemplaza a la peor, eximición, nota mínima para aprobar, promedio por créditos,
-  factor que multiplica la nota (por ejemplo, el laboratorio).
-- **Sincronización opcional** entre dispositivos con una cuenta (correo y contraseña).
-- **Respaldo en archivo** (exportar e importar), sin necesidad de cuenta.
-- Tema claro/oscuro y diseño para teléfono.
+**Úsala en:** [el navegador](https://malvarezdam.github.io/Notable/) (también en iPhone) ·
+[Windows y Android](https://github.com/malvarezdam/Notable/releases/latest)
+
+## Funciones
+
+### Organiza a tu manera
+- **Todo es un árbol:** carrera, año, semestre, ramo, sección o evaluación son niveles a los que
+  tú les pones el nombre, con tantos niveles como necesites.
+- **Mueve lo que quieras** con el botón **⇄**: una sección pasa a otro lugar con todo lo que
+  tiene adentro, sin borrar nada.
+- **Reordena y renombra** con **✎**. Si borras algo, puedes deshacerlo al momento.
+
+### Calcula tus notas
+- **Promedio simple** por defecto: no hay que configurar nada para empezar.
+- **Ponderado** con el botón **Ponderar**, incluso con pesos respecto a otro nivel ("vale 20 % del
+  ramo"), y **promedio por créditos**.
+- **Nota parcial y final:** cada nivel muestra su promedio con lo que hay hasta completar todo.
+- **Nota objetivo:** te dice cuánto necesitas en lo que falta ("Necesitas 4,3 en el Certamen 2"),
+  o si ya está asegurado o no se puede alcanzar. Toma en cuenta todas tus reglas.
+- **Avisos** sin bloquear: pesos que no suman 100 %, notas fuera de la escala y otros problemas.
+
+### Adáptala a tu universidad
+- **Escalas a tu medida:** 1,0–7,0, 0–100 o la que quieras, con nota de aprobación, decimales,
+  aproximar o truncar. Cada nivel la hereda o usa la suya, y se convierte entre escalas.
+- **Redondeo** en cada nivel o solo donde lo pidas.
+- **Reglas opcionales**, todas apagadas hasta que las actives:
+
+| Regla | Qué hace |
+|---|---|
+| Eliminar las peores | Las N notas más bajas no cuentan |
+| Reemplazo | Un examen o una recuperativa reemplaza a la peor nota o a una en particular |
+| Eximición | Una evaluación no se rinde si el promedio de lo demás alcanza |
+| Nota mínima | Sin ese mínimo no se aprueba el nivel de arriba, con tope de nota opcional |
+| Factor | Una nota, como el laboratorio, no se promedia: multiplica la nota de arriba por un factor dentro de un rango, y puede subirla o bajarla |
+
+### Tus datos, en tus dispositivos
+- **Funciona sin cuenta y sin internet:** cada cambio se guarda al instante en el dispositivo.
+- **Cuenta opcional** para sincronizar PC, teléfono y web. Si cambias lo mismo en dos lados, gana
+  el cambio más reciente.
+- **Contraseña:** puedes cambiarla desde tu cuenta o recuperarla con un código por correo.
+- **Respaldo en archivo:** exporta todo a un `.json` e impórtalo después, sin cuenta. Importar
+  agrega sin borrar lo que ya tienes.
+- **Tema** claro, oscuro o el del sistema, y diseño para teléfono y PC.
 
 ## Usar en el navegador o en iPhone
 
@@ -65,8 +96,9 @@ se conservan.
 4. En **⚙ Ajustes** de cada nivel: nota objetivo, escala, redondeo, créditos y, plegadas,
    las **reglas opcionales**. Por ejemplo, si el laboratorio multiplica la nota final
    (factor entre 0,8 y 1,1), ábrelo y activa **Multiplica la nota de arriba**.
-5. Opcional: pulsa **☁** para crear una cuenta y sincronizar el PC y el teléfono. Sin cuenta,
-   todo se guarda solo en el dispositivo. Desde ese mismo panel puedes **cambiar tu contraseña**.
+5. Opcional: pulsa **☁** para crear una cuenta y sincronizar tus dispositivos. Sin cuenta, todo
+   se guarda solo en el dispositivo. Ahí mismo puedes **cambiar tu contraseña** o, antes de entrar,
+   pulsar **Olvidé mi contraseña** para recibir un código por correo.
 6. Respaldo: en **☁ → Respaldo en archivo** puedes **exportar** todo a un archivo `.json` y
    **importarlo** después (o en otro dispositivo). Importar agrega sin borrar lo que ya tienes.
 
@@ -88,10 +120,11 @@ El plan de desarrollo y las decisiones están en [PLAN.md](PLAN.md).
 | Carpeta | Qué hay |
 |---|---|
 | `crates/notable-core` | Modelo (árbol de nodos), cálculo, nota mínima y reglas. Sin IO. |
-| `crates/notable-store` | Guardado local en SQLite y respaldo en JSON. |
+| `crates/notable-store` | Guardado local (SQLite en la app, almacenamiento del navegador en la web) y respaldo en JSON. |
 | `crates/notable-sync` | Cuenta y sincronización con Supabase. |
+| `crates/notable-state` | Estado y operaciones, comunes a la app y a la web. |
 | `crates/notable-api` | Tipos que intercambian la app y la interfaz. |
-| `app/` | Interfaz (Leptos, WebAssembly). `app/src-tauri/`: la app (Tauri 2, escritorio y Android). |
+| `app/` | Interfaz (Leptos, WebAssembly), también la versión web. `app/src-tauri/`: la app (Tauri 2, escritorio y Android). |
 | `supabase/schema.sql` | Esquema del servidor. |
 
 ## Contribuir

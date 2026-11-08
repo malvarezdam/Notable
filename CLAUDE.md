@@ -11,8 +11,12 @@ source: <https://github.com/malvarezdam/Notable> (licencia MIT).
   algo de fondo.
 - No subir la versión ni crear tags/releases sin que el usuario lo pida. Para publicar, ver
   `docs/CONFIGURACION.md` §4.2 (versión en `Cargo.toml` y `app/src-tauri/tauri.conf.json`, luego tag).
-- Pendiente del lado del usuario: probar la sincronización con una cuenta real (PC ↔ teléfono),
-  instalar el APK en su teléfono.
+- La versión sigue en 1.0.0 a pedido del usuario: los cambios nativos se publican reemplazando los
+  archivos de la release `v1.0.0` (portable y APK), sin tag nuevo.
+- Supabase (lo maneja el usuario en su panel): verificación de correo activa y SMTP propio con Gmail.
+  La recuperación de contraseña necesita `{{ .Token }}` en la plantilla "Reset password".
+  El texto "error 500" de la app no implica proyecto pausado: mirar Logs → Auth.
+- Al probar la app en este PC, no usar la carpeta de datos real: compilar con otro `identifier`.
 - Versión web publicada en <https://malvarezdam.github.io/Notable/> con cada push a `main`
   (`pages.yml`, GitHub Pages por Actions).
 - Repo de GitHub configurado: Wiki desactivada, reporte privado de
