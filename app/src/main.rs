@@ -1,6 +1,9 @@
 //! Interfaz de Notable. No calcula nada: le pide a la app (comandos Tauri) la pantalla ya lista
 //! y le avisa de cada cambio; después de cada cambio vuelve a pedir la pantalla.
 
+#[cfg(feature = "web")]
+mod web;
+
 use std::time::Duration;
 
 use leptos::ev::KeyboardEvent;
@@ -14,16 +17,27 @@ use notable_api::{
 use serde::Serialize;
 use serde::de::{DeserializeOwned, IgnoredAny};
 use wasm_bindgen::JsCast;
+#[cfg(not(feature = "web"))]
 use wasm_bindgen::prelude::*;
 
 // ------------------------------------------------------------------ comandos
 
+#[cfg(not(feature = "web"))]
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], catch)]
     async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
 }
 
+/// Versión web: el comando corre aquí mismo, sin Tauri.
+#[cfg(feature = "web")]
+async fn call<A: Serialize, R: DeserializeOwned>(cmd: &str, args: &A) -> Result<R, String> {
+    let args = serde_json::to_value(args).map_err(|e| e.to_string())?;
+    let value = web::dispatch(cmd, args).await?;
+    serde_json::from_value(value).map_err(|e| e.to_string())
+}
+
+#[cfg(not(feature = "web"))]
 async fn call<A: Serialize, R: DeserializeOwned>(cmd: &str, args: &A) -> Result<R, String> {
     let args = serde_wasm_bindgen::to_value(args).map_err(|e| e.to_string())?;
     let value = invoke(cmd, args)
@@ -236,6 +250,9 @@ fn apply_theme(theme: &str) {
 
 fn main() {
     console_error_panic_hook::set_once();
+    if let Some(splash) = document().get_element_by_id("splash") {
+        splash.remove();
+    }
     leptos::mount::mount_to_body(App);
 }
 
@@ -251,6 +268,8 @@ fn App() -> impl IntoView {
         moving: RwSignal::new(None),
     };
     provide_context(ctx);
+    #[cfg(feature = "web")]
+    web::start();
     ctx.reload();
     ctx.poll_account();
     // El estado de la sincronización se consulta seguido (es local y barato).

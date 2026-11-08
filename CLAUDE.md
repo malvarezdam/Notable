@@ -1,6 +1,6 @@
 # Notable
 
-Gestor de notas/calificaciones en Rust para Windows y Android (Linux solo compilando). Proyecto personal open
+Gestor de notas/calificaciones en Rust para Windows, Android y web (Linux solo compilando). Proyecto personal open
 source: <https://github.com/malvarezdam/Notable> (licencia MIT).
 
 ## Estado
@@ -13,7 +13,9 @@ source: <https://github.com/malvarezdam/Notable> (licencia MIT).
   `docs/CONFIGURACION.md` §4.2 (versión en `Cargo.toml` y `app/src-tauri/tauri.conf.json`, luego tag).
 - Pendiente del lado del usuario: probar la sincronización con una cuenta real (PC ↔ teléfono),
   instalar el APK en su teléfono.
-- Repo de GitHub configurado (2026-11-07): GitHub Pages y Wiki desactivados, reporte privado de
+- Versión web publicada en <https://malvarezdam.github.io/Notable/> con cada push a `main`
+  (`pages.yml`, GitHub Pages por Actions).
+- Repo de GitHub configurado: Wiki desactivada, reporte privado de
   vulnerabilidades y Dependabot (alertas y arreglos) activados, secretos solo los de firma de Android.
 
 ## Reglas
@@ -36,13 +38,14 @@ source: <https://github.com/malvarezdam/Notable> (licencia MIT).
 | Carpeta | Qué hay |
 |---|---|
 | `crates/notable-core` | Árbol de nodos, cálculo (`calc.rs`), nota mínima (`goal.rs`), reglas opcionales (`rules.rs`). |
-| `crates/notable-store` | SQLite (`rusqlite` bundled), migraciones, respaldo JSON, filas para sincronizar (`sync.rs`). |
-| `crates/notable-sync` | Supabase (Auth + PostgREST con `ureq`), sincronización bajar→aplicar→subir. |
+| `crates/notable-store` | SQLite (`rusqlite` bundled, `native.rs`), guardado web (`kv.rs`/`web.rs`, localStorage), migraciones, respaldo JSON. Las reglas de guardado deben ser iguales en ambos. |
+| `crates/notable-sync` | Supabase: `supabase.rs` (`ureq`), `web.rs` (`fetch`), `protocol.rs` (común); sincronización bajar→aplicar→subir. |
+| `crates/notable-state` | Estado de la app (árbol + guardado + pantallas), común a nativo y web; se prueba directo. |
 | `crates/notable-api` | Tipos que intercambian app e interfaz (datos ya formateados). |
-| `app/` | Interfaz Leptos 0.8 (CSR, WebAssembly, Trunk). |
-| `app/src-tauri/` | App Tauri 2: comandos (`lib.rs`), estado sin Tauri (`state.rs`, se prueba directo), hilo de sincronización (`sync.rs`). `gen/android` se versiona (firma en `app/build.gradle.kts`, márgenes en `MainActivity.kt`). |
+| `app/` | Interfaz Leptos 0.8 (CSR, WebAssembly, Trunk). Con la feature `web` (`src/web.rs`, `web/`) corre sin Tauri. |
+| `app/src-tauri/` | App Tauri 2: comandos (`lib.rs`), hilo de sincronización (`sync.rs`). `gen/android` se versiona (firma en `app/build.gradle.kts`, márgenes en `MainActivity.kt`). |
 | `supabase/schema.sql` | Tabla `items` con RLS (proyecto `augvbftjwvysrozyxvbh`). |
-| `.github/workflows/` | `ci.yml` (fmt, clippy, pruebas) y `release.yml` (tag `v*` → release). |
+| `.github/workflows/` | `ci.yml` (fmt, clippy, pruebas), `release.yml` (tag `v*` → release) y `pages.yml` (web). |
 
 ## Comandos
 
@@ -50,6 +53,7 @@ source: <https://github.com/malvarezdam/Notable> (licencia MIT).
 cargo test --workspace --exclude notable-ui
 cargo clippy --workspace --exclude notable-ui --all-targets -- -D warnings
 cargo clippy -p notable-ui --target wasm32-unknown-unknown -- -D warnings
+cargo clippy -p notable-ui --target wasm32-unknown-unknown --features web -- -D warnings
 cd app/src-tauri && cargo tauri dev
 cd app/src-tauri && cargo tauri android build --apk --target aarch64   # requiere Modo para desarrolladores de Windows
 ```

@@ -6,7 +6,10 @@ use notable_core::TreeError;
 #[derive(Debug)]
 pub enum StoreError {
     /// Error de SQLite.
+    #[cfg(not(target_arch = "wasm32"))]
     Sqlite(rusqlite::Error),
+    /// El almacenamiento del navegador falló (lleno o bloqueado).
+    Storage(String),
     /// Error al leer o escribir un archivo de respaldo.
     Io(std::io::Error),
     /// Una fila guardada no es un nodo válido.
@@ -27,7 +30,9 @@ pub enum StoreError {
 impl fmt::Display for StoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Sqlite(e) => write!(f, "error de la base de datos: {e}"),
+            Self::Storage(e) => write!(f, "no se pudo usar el almacenamiento del navegador: {e}"),
             Self::Io(e) => write!(f, "error de archivo: {e}"),
             Self::CorruptRow { id, error } => {
                 write!(f, "el nodo guardado {id} está dañado: {error}")
@@ -47,15 +52,20 @@ impl fmt::Display for StoreError {
 impl std::error::Error for StoreError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            #[cfg(not(target_arch = "wasm32"))]
             Self::Sqlite(e) => Some(e),
             Self::Io(e) => Some(e),
             Self::CorruptRow { error, .. } => Some(error),
             Self::Tree(e) => Some(e),
-            Self::NewerSchema { .. } | Self::InvalidBackup(_) | Self::InvalidId(_) => None,
+            Self::NewerSchema { .. }
+            | Self::InvalidBackup(_)
+            | Self::InvalidId(_)
+            | Self::Storage(_) => None,
         }
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<rusqlite::Error> for StoreError {
     fn from(e: rusqlite::Error) -> Self {
         Self::Sqlite(e)

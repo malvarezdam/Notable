@@ -4,7 +4,7 @@ Notable está hecho para que tus notas sean tuyas.
 
 ## Sin cuenta (por defecto)
 
-- Todo se guarda **solo en tu dispositivo**, en una base de datos local.
+- Todo se guarda **solo en tu dispositivo**: en una base de datos local en la app y en el almacenamiento del navegador en la versión web.
 - La app **no envía nada** a internet: ni notas, ni estadísticas de uso, ni publicidad. No hay
   rastreadores.
 
@@ -23,7 +23,7 @@ Si creas una cuenta para sincronizar entre dispositivos:
 
 ## Borrar tus datos
 
-- **En el dispositivo:** desinstala la app (o borra sus datos desde los ajustes del sistema).
+- **En el dispositivo:** desinstala la app (o borra sus datos desde los ajustes del sistema). En la versión web, borra los datos del sitio en tu navegador.
 - **En la cuenta:** cerrar sesión no borra nada del servidor. Para eliminar tu cuenta y todo lo
   sincronizado, pídelo abriendo un issue o por el reporte privado de [SECURITY.md](SECURITY.md)
   (sin escribir datos personales en público).

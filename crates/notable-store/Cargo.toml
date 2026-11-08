@@ -1,6 +1,6 @@
 [package]
 name = "notable-store"
-description = "Guardado local de Notable en SQLite."
+description = "Guardado local de Notable (SQLite o navegador)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,9 +9,15 @@ repository.workspace = true
 
 [dependencies]
 notable-core = { path = "../notable-core" }
-rusqlite = { version = "0.41.1", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rusqlite = { version = "0.41.1", features = ["bundled"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Storage", "Window"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"

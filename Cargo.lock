@@ -2419,6 +2419,7 @@ version = "1.0.0"
 dependencies = [
  "notable-api",
  "notable-core",
+ "notable-state",
  "notable-store",
  "notable-sync",
  "serde",
@@ -2439,26 +2440,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "notable-state"
+version = "1.0.0"
+dependencies = [
+ "notable-api",
+ "notable-core",
+ "notable-store",
+ "notable-sync",
+]
+
+[[package]]
 name = "notable-store"
 version = "1.0.0"
 dependencies = [
+ "js-sys",
  "notable-core",
  "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
+ "web-sys",
 ]
 
 [[package]]
 name = "notable-sync"
 version = "1.0.0"
 dependencies = [
+ "js-sys",
  "notable-core",
  "notable-store",
  "serde",
  "serde_json",
  "time",
  "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
@@ -2468,8 +2485,12 @@ dependencies = [
  "console_error_panic_hook",
  "leptos",
  "notable-api",
+ "notable-state",
+ "notable-store",
+ "notable-sync",
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",

@@ -1,6 +1,6 @@
 # Notable
 
-Gestor de notas y calificaciones para **Windows y Android**, escrito en Rust.
+Gestor de notas y calificaciones para **Windows, Android y la web** (también iPhone), escrito en Rust.
 Arma tu carrera, tus ramos y sus evaluaciones como quieras, ingresa las notas y Notable calcula
 tus promedios y cuánto necesitas para llegar a la nota que buscas.
 
@@ -22,6 +22,16 @@ tus promedios y cuánto necesitas para llegar a la nota que buscas.
 - **Sincronización opcional** entre dispositivos con una cuenta (correo y contraseña).
 - **Respaldo en archivo** (exportar e importar), sin necesidad de cuenta.
 - Tema claro/oscuro y diseño para teléfono.
+
+## Usar en el navegador o en iPhone
+
+Abre **<https://malvarezdam.github.io/Notable/>**: es la misma app, sin descargar nada. Reconoce
+sola si estás en un teléfono o en un PC.
+
+**iPhone:** ábrela en Safari, pulsa **Compartir → Añadir a pantalla de inicio** y queda con su
+ícono, como una app. Con la misma cuenta ves las mismas notas que en el PC y en Android. Sin cuenta,
+las notas quedan solo en ese navegador; conviene usar cuenta, porque el navegador puede borrar
+sus datos.
 
 ## Descargar
 
@@ -68,6 +78,7 @@ la CLI de Tauri 2 (`cargo install tauri-cli --version "^2"`).
 ```bash
 cargo test --workspace --exclude notable-ui   # pruebas
 cd app/src-tauri && cargo tauri dev           # la app en modo desarrollo
+cd app && trunk serve --features web          # la versión web en modo desarrollo
 cd app/src-tauri && cargo tauri build --no-bundle  # ejecutable de escritorio (target/release)
 ```
 

@@ -53,7 +53,7 @@ Si dice que no has iniciado sesión: `gh auth login` y sigue las instrucciones (
    - Activado (por defecto): cada cuenta nueva debe confirmar su correo. El correo gratis de Supabase
      tiene un límite muy bajo (unos pocos por hora); para uso personal alcanza.
    - Si te molesta, puedes desactivarlo. Para una app personal es aceptable.
-3. **Authentication** → **URL Configuration** → **Site URL**: pon `https://github.com/malvarezdam/Notable/releases/latest`
+3. **Authentication** → **URL Configuration** → **Site URL**: pon `https://malvarezdam.github.io/Notable/`
    (por defecto es `localhost:3000` y el link de confirmación termina en un error).
 4. **Recuperar contraseña:** la app pide un código, así que en **Authentication** → **Emails** →
    **Reset password** el mensaje debe mostrarlo. Deja el cuerpo así:

@@ -1,13 +1,11 @@
 //! Estado de la app: el árbol en memoria y la base local. Cada cambio se guarda al instante.
 //!
-//! No depende de Tauri, así se prueba directo.
-
-use std::path::Path;
+//! No depende de Tauri ni del navegador: lo usan la app nativa y la versión web.
 
 use notable_api::{
-    Change, ConfigView, Crumb, Destination, Details, ExemptionSettings, FactorSettings, Goal,
-    GoalKind, Item, MinimumSettings, Mode, ReplaceSettings, RulesSettings, Scale, ScaleSettings,
-    Screen, format_grade, format_number,
+    Account, Change, ConfigView, Crumb, Destination, Details, ExemptionSettings, FactorSettings,
+    Goal, GoalKind, Item, MinimumSettings, Mode, ReplaceSettings, RulesSettings, Scale,
+    ScaleSettings, Screen, SyncStatus, format_grade, format_number,
 };
 use notable_core::{
     Aggregation, Conversion, Effect, Evaluation, Exemption, Factor, GradeConfig, Minimum, NodeId,
@@ -25,7 +23,8 @@ pub struct Data {
 
 impl Data {
     /// Abre la base en `path` y carga el árbol.
-    pub fn open(path: &Path) -> Result<Self> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn open(path: &std::path::Path) -> Result<Self> {
         Self::from_store(Store::open(path).map_err(|e| e.to_string())?)
     }
 
@@ -33,6 +32,18 @@ impl Data {
     #[cfg(test)]
     pub fn in_memory() -> Result<Self> {
         Self::from_store(Store::open_in_memory().map_err(|e| e.to_string())?)
+    }
+
+    /// Abre el guardado del navegador y carga el árbol.
+    #[cfg(target_arch = "wasm32")]
+    pub fn open_browser() -> Result<Self> {
+        Self::from_store(Store::open_browser().map_err(|e| e.to_string())?)
+    }
+
+    /// Vuelve a leer lo guardado (otra pestaña del navegador lo cambió).
+    pub fn reload(&mut self) -> Result<()> {
+        self.tree = self.store.load_tree().map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     fn from_store(store: Store) -> Result<Self> {
@@ -267,6 +278,36 @@ impl Data {
             self.store_session(session)?;
         }
         Ok(())
+    }
+
+    /// Estado de la cuenta para el indicador y el panel, según la última sincronización.
+    pub fn account(&self, sync: SyncStatus, error: &str, revision: u64) -> Result<Account> {
+        let session = self.session()?;
+        let status = match (&session, sync) {
+            (None, _) => SyncStatus::SignedOut,
+            // Recién entró y la sincronización todavía no corre.
+            (Some(_), SyncStatus::SignedOut) => SyncStatus::Syncing,
+            (Some(_), s) => s,
+        };
+        let message = match status {
+            SyncStatus::SignedOut if !error.is_empty() => error.to_owned(),
+            SyncStatus::SignedOut => {
+                "Sin cuenta: tus notas se guardan solo en este dispositivo.".into()
+            }
+            SyncStatus::Syncing => "Sincronizando…".into(),
+            SyncStatus::Synced => match self.last_sync() {
+                Some(t) => format!("Sincronizado {}", ago(t)),
+                None => "Sincronizado".into(),
+            },
+            SyncStatus::Offline | SyncStatus::Error => error.to_owned(),
+        };
+        Ok(Account {
+            email: session.map(|s| s.email),
+            status,
+            message,
+            pending: self.pending_count(),
+            revision,
+        })
     }
 
     /// Hora de la última sincronización completa.
@@ -695,6 +736,36 @@ fn to_rules(r: &RulesSettings) -> Result<Rules> {
 
 fn parse_id(id: &str) -> Result<NodeId> {
     id.parse().map_err(|_| format!("id inválido: {id}"))
+}
+
+/// "hace 3 min" desde una hora en milisegundos.
+fn ago(ms: i64) -> String {
+    let minutes = (notable_sync::now_ms() - ms).max(0) / 60_000;
+    match minutes {
+        0 => "recién".to_owned(),
+        1..=59 => format!("hace {minutes} min"),
+        60..=1439 => format!("hace {} h", minutes / 60),
+        _ => format!("hace {} días", minutes / 1440),
+    }
+}
+
+/// Fecha de hoy (UTC) como "2026-11-07", para el nombre del respaldo.
+pub fn today() -> String {
+    civil_date(notable_sync::now_ms().div_euclid(86_400_000))
+}
+
+/// Días desde 1970 → "AAAA-MM-DD" (algoritmo de Howard Hinnant).
+fn civil_date(days: i64) -> String {
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
 }
 
 #[cfg(test)]
@@ -1159,5 +1230,17 @@ mod tests {
             ..RulesSettings::default()
         };
         assert!(data.update(&lab, Change::Rules(bad)).is_err());
+    }
+}
+
+#[cfg(test)]
+mod date_tests {
+    use super::civil_date;
+
+    #[test]
+    fn civil_dates() {
+        assert_eq!(civil_date(0), "1970-01-01");
+        assert_eq!(civil_date(11_016), "2000-02-29");
+        assert_eq!(civil_date(20_764), "2026-11-07");
     }
 }

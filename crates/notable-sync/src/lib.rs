@@ -15,14 +15,23 @@
 //! en memoria. Los pasos ([`pull_cursor`], [`finish_pull`]…) son públicos para que la app no
 //! tenga la base bloqueada mientras espera a la red.
 
+mod protocol;
+#[cfg(not(target_arch = "wasm32"))]
 mod supabase;
+#[cfg(target_arch = "wasm32")]
+mod web;
 
 use std::fmt;
 
 use notable_store::{Store, StoreError, SyncRow};
 use serde::{Deserialize, Serialize};
 
-pub use supabase::{SignUp, Supabase, SupabaseRemote};
+pub use notable_store::now_ms;
+pub use protocol::SignUp;
+#[cfg(not(target_arch = "wasm32"))]
+pub use supabase::{Supabase, SupabaseRemote};
+#[cfg(target_arch = "wasm32")]
+pub use web::WebClient;
 
 /// Proyecto de Supabase de Notable. La URL y la clave *publishable* son públicas: la seguridad
 /// la dan las reglas RLS de la tabla (cada usuario solo ve lo suyo).
@@ -198,11 +207,4 @@ pub fn bind_account(store: &mut Store, user_id: &str) -> Result<(), SyncError> {
         store.set_meta(META_USER, Some(user_id))?;
     }
     Ok(())
-}
-
-/// Milisegundos desde 1970.
-pub fn now_ms() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as i64)
 }

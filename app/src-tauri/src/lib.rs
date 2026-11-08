@@ -1,16 +1,16 @@
 //! App de Notable: comandos Tauri que la interfaz llama para leer y modificar el árbol, y la
 //! cuenta con sincronización (opcional).
 
-mod state;
 mod sync;
 
 use std::sync::Mutex;
 
-use notable_api::{Account, Change, Destination, Screen, SyncStatus};
+use notable_api::{Account, Change, Destination, Screen};
 use notable_sync::{SignUp, Supabase};
 use tauri::{Manager, State};
 
-use state::Data;
+use notable_state as state;
+use state::{Data, today};
 use sync::SyncHandle;
 
 /// El estado compartido. Si la base no se pudo abrir, cada comando devuelve ese error (y no se
@@ -136,33 +136,7 @@ fn update(
 fn account(state: State<'_, AppState>, sync: State<'_, SyncHandle>) -> state::Result<Account> {
     let info = sync.info();
     with(&state, |d| {
-        let session = d.session()?;
-        let pending = d.pending_count();
-        let status = match (&session, info.status) {
-            (None, _) => SyncStatus::SignedOut,
-            // Recién entró y el hilo todavía no corre.
-            (Some(_), SyncStatus::SignedOut) => SyncStatus::Syncing,
-            (Some(_), s) => s,
-        };
-        let message = match status {
-            SyncStatus::SignedOut if !info.error.is_empty() => info.error.clone(),
-            SyncStatus::SignedOut => {
-                "Sin cuenta: tus notas se guardan solo en este dispositivo.".into()
-            }
-            SyncStatus::Syncing => "Sincronizando…".into(),
-            SyncStatus::Synced => match d.last_sync() {
-                Some(t) => format!("Sincronizado {}", sync::ago(t)),
-                None => "Sincronizado".into(),
-            },
-            SyncStatus::Offline | SyncStatus::Error => info.error.clone(),
-        };
-        Ok(Account {
-            email: session.map(|s| s.email),
-            status,
-            message,
-            pending,
-            revision: info.revision,
-        })
+        d.account(info.status, &info.error, info.revision)
     })
 }
 
@@ -369,25 +343,6 @@ async fn import_backup(
     )))
 }
 
-/// Fecha de hoy (UTC) como "2026-11-07", para el nombre del respaldo.
-fn today() -> String {
-    civil_date(notable_sync::now_ms().div_euclid(86_400_000))
-}
-
-/// Días desde 1970 → "AAAA-MM-DD" (algoritmo de Howard Hinnant).
-fn civil_date(days: i64) -> String {
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}-{month:02}-{day:02}")
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -427,16 +382,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error al iniciar Notable");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::civil_date;
-
-    #[test]
-    fn civil_dates() {
-        assert_eq!(civil_date(0), "1970-01-01");
-        assert_eq!(civil_date(11_016), "2000-02-29");
-        assert_eq!(civil_date(20_764), "2026-11-07");
-    }
 }

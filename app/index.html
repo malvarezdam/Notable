@@ -2,10 +2,47 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Notable</title>
+    <meta name="description" content="Gestor de notas y calificaciones." />
+    <meta name="theme-color" content="#18181a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Notable" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="icon-284.png" />
+    <link rel="apple-touch-icon" href="icon-284.png" />
+    <script>
+      // Antes de cargar la app: teléfono o PC. Se mira el tipo de dispositivo, no solo el ancho,
+      // para que un teléfono girado siga viéndose como teléfono.
+      (function () {
+        var ua = navigator.userAgent;
+        var coarse = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+        var short = Math.min(screen.width, screen.height) < 600;
+        var phone =
+          (navigator.userAgentData && navigator.userAgentData.mobile) ||
+          /iPhone|iPod|Android.*Mobile/i.test(ua) ||
+          (coarse && short);
+        document.documentElement.setAttribute("data-device", phone ? "phone" : "pc");
+      })();
+      // Solo en la versión publicada: funcionar sin conexión y pedir que no se borren los datos.
+      if (location.hostname.endsWith("github.io")) {
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.register("sw.js");
+        }
+        if (navigator.storage && navigator.storage.persist) {
+          navigator.storage.persist();
+        }
+      }
+    </script>
     <link data-trunk rel="css" href="styles.css" />
+    <link data-trunk rel="copy-file" href="web/manifest.webmanifest" />
+    <link data-trunk rel="copy-file" href="web/sw.js" />
+    <link data-trunk rel="copy-file" href="web/icon-284.png" />
+    <link data-trunk rel="copy-file" href="web/icon-512.png" />
     <link data-trunk rel="rust" data-wasm-opt="z" />
   </head>
-  <body></body>
+  <body>
+    <p id="splash">Cargando Notable…</p>
+  </body>
 </html>

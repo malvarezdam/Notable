@@ -7,11 +7,19 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
+[features]
+# Versión web: sin Tauri, con el guardado y la sincronización dentro del navegador.
+web = ["dep:notable-state", "dep:notable-sync", "dep:notable-store", "dep:serde_json"]
+
 [dependencies]
 console_error_panic_hook = "0.1.7"
 leptos = { version = "0.8", features = ["csr"] }
 notable-api = { path = "../crates/notable-api" }
+notable-state = { path = "../crates/notable-state", optional = true }
+notable-sync = { path = "../crates/notable-sync", optional = true }
+notable-store = { path = "../crates/notable-store", optional = true }
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", optional = true }
 serde-wasm-bindgen = "0.6.5"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

@@ -45,5 +45,8 @@ jobs:
       - name: Clippy (interfaz, WebAssembly)
         run: cargo clippy -p notable-ui --target wasm32-unknown-unknown -- -D warnings
 
+      - name: Clippy (versión web)
+        run: cargo clippy -p notable-ui --target wasm32-unknown-unknown --features web -- -D warnings
+
       - name: Pruebas
         run: cargo test --workspace --exclude notable-ui

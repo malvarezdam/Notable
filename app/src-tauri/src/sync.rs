@@ -11,7 +11,7 @@ use notable_sync::{Remote, Supabase, SyncError, now_ms};
 use tauri::{AppHandle, Manager};
 
 use crate::AppState;
-use crate::state::Data;
+use notable_state::Data;
 
 /// Cada cuánto se sincroniza si no pasa nada.
 const EVERY: Duration = Duration::from_secs(180);
@@ -180,16 +180,5 @@ fn run_once(app: &AppHandle) -> bool {
             sync.set(status, e.to_string(), false);
             transient
         }
-    }
-}
-
-/// "hace 3 min" desde una hora en milisegundos.
-pub fn ago(ms: i64) -> String {
-    let minutes = (now_ms() - ms).max(0) / 60_000;
-    match minutes {
-        0 => "recién".to_owned(),
-        1..=59 => format!("hace {minutes} min"),
-        60..=1439 => format!("hace {} h", minutes / 60),
-        _ => format!("hace {} días", minutes / 1440),
     }
 }

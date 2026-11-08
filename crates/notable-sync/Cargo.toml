@@ -13,4 +13,12 @@ notable-store = { path = "../notable-store" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 time = { version = "0.3.55", features = ["formatting", "parsing"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ureq = { version = "2", features = ["json"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["Headers", "Request", "RequestCache", "RequestInit", "Response", "Window"] }

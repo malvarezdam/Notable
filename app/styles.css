@@ -759,3 +759,52 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
 }
+
+/* Pantalla de carga */
+#splash {
+  margin: 40vh 0 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* Teléfono detectado antes de cargar: mismo diseño aunque esté girado. */
+html[data-device="phone"] main {
+  padding: 12px;
+}
+
+html[data-device="phone"] .row {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
+html[data-device="phone"] .row .main,
+html[data-device="phone"] .row .editing {
+  flex-basis: 100%;
+}
+
+html[data-device="phone"] .row .weight {
+  margin-left: 10px;
+}
+
+html[data-device="phone"] .row .grade-input,
+html[data-device="phone"] .row .grade {
+  margin-left: auto;
+}
+
+html[data-device="phone"] .icon {
+  opacity: 0.85;
+  width: 40px;
+  height: 40px;
+}
+
+html[data-device="phone"] input.grade-input,
+html[data-device="phone"] input.number,
+html[data-device="phone"] input.text,
+html[data-device="phone"] select {
+  min-height: 40px;
+  font-size: 16px;
+}
+
+html[data-device="phone"] .chip {
+  min-height: 36px;
+}

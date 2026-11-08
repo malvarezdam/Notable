@@ -7,6 +7,8 @@ Todos los cambios importantes de Notable. El formato sigue
 ## [Sin publicar]
 
 ### Agregado
+- **Versión web** en GitHub Pages, instalable en iPhone, con las mismas pantallas y operaciones y
+  la misma cuenta. Reconoce sola si es teléfono o PC.
 - **Cambiar contraseña** desde el panel de cuenta (pide la contraseña actual).
 - **Recuperar una contraseña olvidada** con un código enviado por correo, antes de entrar.
 
