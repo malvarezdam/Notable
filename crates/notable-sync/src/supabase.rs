@@ -14,6 +14,9 @@ use crate::{Remote, RemoteRow, SUPABASE_KEY, SUPABASE_URL, Session, SyncError};
 /// Filas por página al bajar y por petición al subir.
 const PAGE: usize = 500;
 
+/// Mensaje cuando el correo o la contraseña no corresponden.
+const WRONG_CREDENTIALS: &str = "Correo o contraseña incorrectos.";
+
 /// Margen para refrescar la sesión antes de que venza.
 const REFRESH_MARGIN_S: i64 = 120;
 
@@ -94,6 +97,32 @@ impl Supabase {
             Err(SyncError::Rejected(m)) => Err(SyncError::Auth(m)),
             Err(e) => Err(e),
         }
+    }
+
+    /// Cambia la contraseña de la cuenta y devuelve una sesión nueva, que es la que hay que
+    /// guardar: el servidor puede cerrar las demás sesiones al cambiarla.
+    ///
+    /// Antes comprueba la contraseña actual entrando con ella, para que un dispositivo con la
+    /// sesión abierta no baste para cambiarla.
+    pub fn change_password(
+        &self,
+        email: &str,
+        current: &str,
+        new: &str,
+    ) -> Result<Session, SyncError> {
+        let session = self.sign_in(email, current).map_err(|e| match e {
+            SyncError::Rejected(m) | SyncError::Auth(m) if m == WRONG_CREDENTIALS => {
+                SyncError::Rejected("La contraseña actual no es correcta.".to_owned())
+            }
+            e => e,
+        })?;
+        self.agent
+            .put(&format!("{}/auth/v1/user", self.url))
+            .set("apikey", &self.key)
+            .set("Authorization", &format!("Bearer {}", session.access_token))
+            .send_json(json!({ "password": new }))
+            .map_err(|e| map_error(e, true))?;
+        Ok(session)
     }
 
     /// Cierra la sesión en el servidor (si falla, da igual: localmente se olvida igual).
@@ -315,15 +344,14 @@ fn map_error(error: ureq::Error, auth: bool) -> SyncError {
                 return SyncError::Unavailable(format!("error {status}"));
             }
             let friendly = match code {
-                "invalid_credentials" | "invalid_grant" if auth => {
-                    Some("Correo o contraseña incorrectos.")
-                }
+                "invalid_credentials" | "invalid_grant" if auth => Some(WRONG_CREDENTIALS),
                 "email_not_confirmed" => {
                     Some("Falta confirmar el correo: revisa tu bandeja (y la de spam).")
                 }
                 "user_already_exists" | "email_exists" => {
                     Some("Ya existe una cuenta con ese correo. Usa «Entrar».")
                 }
+                "same_password" => Some("La contraseña nueva debe ser distinta de la actual."),
                 "weak_password" => Some("La contraseña es muy débil (usa al menos 6 caracteres)."),
                 "email_address_invalid" | "validation_failed" => Some("El correo no es válido."),
                 "over_email_send_rate_limit" | "over_request_rate_limit" => {
@@ -375,5 +403,112 @@ mod tests {
         assert_eq!(body["data"]["name"], "Ramo");
         assert_eq!(body["updated_at"], "1970-01-01T00:00:01Z");
         assert!(body.get("user_id").is_none());
+    }
+
+    /// Lo que recibió el servidor de prueba: primera línea, autorización y cuerpo.
+    type Seen = (String, String, String);
+
+    /// Servidor local que responde en orden `replies` (estado, cuerpo) y devuelve lo recibido
+    /// (primera línea, autorización y cuerpo de cada petición).
+    fn fake_server(
+        replies: Vec<(u16, &'static str)>,
+    ) -> (String, std::thread::JoinHandle<Vec<Seen>>) {
+        use std::io::{BufRead, BufReader, Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let handle = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            for (status, reply) in replies {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut first = String::new();
+                reader.read_line(&mut first).unwrap();
+                let (mut auth, mut length) = (String::new(), 0);
+                loop {
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    let line = line.trim();
+                    if line.is_empty() {
+                        break;
+                    }
+                    let (name, value) = line.split_once(':').unwrap();
+                    match name.to_ascii_lowercase().as_str() {
+                        "authorization" => auth = value.trim().to_owned(),
+                        "content-length" => length = value.trim().parse().unwrap(),
+                        _ => {}
+                    }
+                }
+                let mut body = vec![0; length];
+                reader.read_exact(&mut body).unwrap();
+                seen.push((
+                    first.trim().to_owned(),
+                    auth,
+                    String::from_utf8(body).unwrap(),
+                ));
+                write!(
+                    stream,
+                    "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                    reply.len()
+                )
+                .unwrap();
+            }
+            seen
+        });
+        (url, handle)
+    }
+
+    const TOKEN: &str = r#"{"access_token":"nuevo","refresh_token":"r","expires_in":3600,"user":{"id":"u1","email":"a@b.cl"}}"#;
+
+    #[test]
+    fn change_password_checks_the_current_one_first() {
+        let (url, server) = fake_server(vec![(200, TOKEN), (200, "{}")]);
+        let session = Supabase::new(&url, "k")
+            .change_password("a@b.cl", "vieja", "nueva1")
+            .unwrap();
+        assert_eq!(session.access_token, "nuevo");
+
+        let seen = server.join().unwrap();
+        assert!(
+            seen[0]
+                .0
+                .starts_with("POST /auth/v1/token?grant_type=password")
+        );
+        assert!(seen[0].2.contains("\"password\":\"vieja\""));
+        assert!(seen[1].0.starts_with("PUT /auth/v1/user"));
+        assert_eq!(seen[1].1, "Bearer nuevo");
+        assert_eq!(seen[1].2, r#"{"password":"nueva1"}"#);
+    }
+
+    #[test]
+    fn wrong_current_password_changes_nothing() {
+        let (url, server) = fake_server(vec![(
+            400,
+            r#"{"error_code":"invalid_credentials","msg":"x"}"#,
+        )]);
+        let error = Supabase::new(&url, "k")
+            .change_password("a@b.cl", "mala", "nueva1")
+            .unwrap_err();
+        assert_eq!(error.to_string(), "La contraseña actual no es correcta.");
+        assert_eq!(
+            server.join().unwrap().len(),
+            1,
+            "no debe intentar cambiarla"
+        );
+    }
+
+    #[test]
+    fn same_password_has_a_clear_message() {
+        let (url, server) = fake_server(vec![
+            (200, TOKEN),
+            (422, r#"{"error_code":"same_password","msg":"x"}"#),
+        ]);
+        let error = Supabase::new(&url, "k")
+            .change_password("a@b.cl", "igual1", "igual1")
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "La contraseña nueva debe ser distinta de la actual."
+        );
+        server.join().unwrap();
     }
 }

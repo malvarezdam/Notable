@@ -237,6 +237,29 @@ async fn sign_out(state: State<'_, AppState>, sync: State<'_, SyncHandle>) -> st
     Ok(())
 }
 
+/// Cambia la contraseña de la cuenta. Devuelve un mensaje para mostrar.
+#[tauri::command]
+async fn change_password(
+    current: String,
+    password: String,
+    state: State<'_, AppState>,
+    sync: State<'_, SyncHandle>,
+) -> state::Result<String> {
+    let session = with(&state, |d| d.session())?.ok_or("Primero inicia sesión.")?;
+    let fresh = blocking(move || {
+        Supabase::default()
+            .change_password(&session.email, &current, &password)
+            .map_err(|e| e.to_string())
+    })
+    .await?;
+    with(&state, |d| d.store_session(Some(&fresh)))?;
+    sync.now();
+    Ok(
+        "Contraseña cambiada. En tus otros dispositivos puede que debas entrar con la nueva."
+            .into(),
+    )
+}
+
 #[tauri::command]
 fn sync_now(sync: State<'_, SyncHandle>) {
     sync.now();
@@ -363,6 +386,7 @@ pub fn run() {
             sign_in,
             sign_up,
             sign_out,
+            change_password,
             sync_now,
             export_backup,
             import_backup

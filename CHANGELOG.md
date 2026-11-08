@@ -6,6 +6,9 @@ Todos los cambios importantes de Notable. El formato sigue
 
 ## [Sin publicar]
 
+### Agregado
+- **Cambiar contraseña** desde el panel de cuenta (pide la contraseña actual).
+
 ## [1.0.0] - 2026-11-07
 
 Primera versión de la app nativa en Rust (reemplaza a la versión web anterior). Los archivos de

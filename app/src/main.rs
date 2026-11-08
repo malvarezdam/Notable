@@ -76,6 +76,12 @@ struct MoveArgs {
 struct NoArgs {}
 
 #[derive(Serialize)]
+struct PasswordArgs {
+    current: String,
+    password: String,
+}
+
+#[derive(Serialize)]
 struct LoginArgs {
     email: String,
     password: String,
@@ -340,6 +346,65 @@ fn AccountPanel() -> impl IntoView {
         });
     };
     let sync_now = move |_| ctx.run("sync_now", NoArgs {}, |ctx| ctx.poll_account());
+
+    // Cambiar la contraseña (con sesión iniciada).
+    let changing = RwSignal::new(false);
+    let current = RwSignal::new(String::new());
+    let new_password = RwSignal::new(String::new());
+    let repeat = RwSignal::new(String::new());
+    let clear_passwords = move || {
+        current.set(String::new());
+        new_password.set(String::new());
+        repeat.set(String::new());
+    };
+    let change_password = move || {
+        let args = PasswordArgs {
+            current: current.get_untracked(),
+            password: new_password.get_untracked(),
+        };
+        if args.current.is_empty() || args.password.is_empty() {
+            note.set(Some("Escribe tu contraseña actual y la nueva.".into()));
+            return;
+        }
+        if args.password != repeat.get_untracked() {
+            note.set(Some("Las contraseñas nuevas no coinciden.".into()));
+            return;
+        }
+        busy.set(true);
+        note.set(None);
+        spawn_local(async move {
+            let result = call::<_, String>("change_password", &args).await;
+            busy.set(false);
+            match result {
+                Ok(message) => {
+                    clear_passwords();
+                    changing.set(false);
+                    note.set(Some(message));
+                }
+                Err(e) => note.set(Some(e)),
+            }
+            ctx.poll_account();
+        });
+    };
+    let password_input =
+        move |signal: RwSignal<String>, placeholder: &'static str, autocomplete: &'static str| {
+            view! {
+                <input
+                    class="text"
+                    type="password"
+                    placeholder=placeholder
+                    autocomplete=autocomplete
+                    prop:value=move || signal.get()
+                    on:input=move |ev| signal.set(event_target_value(&ev))
+                    on:keydown=move |ev: KeyboardEvent| {
+                        if ev.key() == "Enter" {
+                            change_password()
+                        }
+                    }
+                />
+            }
+        };
+
     // Respaldo en archivo (sin cuenta). `None` = el usuario canceló el diálogo.
     let backup = move |cmd: &'static str| {
         busy.set(true);
@@ -415,8 +480,25 @@ fn AccountPanel() -> impl IntoView {
                 </div>
                 <div class="buttons">
                     <button class="chip" on:click=sync_now>"Sincronizar ahora"</button>
+                    <button class="chip" on:click=move |_| {
+                        clear_passwords();
+                        note.set(None);
+                        changing.update(|c| *c = !*c);
+                    }>"Cambiar contraseña"</button>
                     <button class="chip" on:click=sign_out>"Cerrar sesión"</button>
                 </div>
+                <Show when=move || changing.get()>
+                    <div class="login">
+                        {password_input(current, "Contraseña actual", "current-password")}
+                        {password_input(new_password, "Contraseña nueva", "new-password")}
+                        {password_input(repeat, "Repite la contraseña nueva", "new-password")}
+                        <div class="buttons">
+                            <button class="primary" disabled=move || busy.get() on:click=move |_| change_password()>
+                                "Guardar contraseña"
+                            </button>
+                        </div>
+                    </div>
+                </Show>
                 <p class="hint">"Al cerrar sesión tus notas se quedan en este dispositivo."</p>
             </Show>
             <div class="field backup">

@@ -56,7 +56,7 @@ se conservan.
    las **reglas opcionales**. Por ejemplo, si el laboratorio multiplica la nota final
    (factor entre 0,8 y 1,1), ábrelo y activa **Multiplica la nota de arriba**.
 5. Opcional: pulsa **☁** para crear una cuenta y sincronizar el PC y el teléfono. Sin cuenta,
-   todo se guarda solo en el dispositivo.
+   todo se guarda solo en el dispositivo. Desde ese mismo panel puedes **cambiar tu contraseña**.
 6. Respaldo: en **☁ → Respaldo en archivo** puedes **exportar** todo a un archivo `.json` y
    **importarlo** después (o en otro dispositivo). Importar agrega sin borrar lo que ya tienes.
 

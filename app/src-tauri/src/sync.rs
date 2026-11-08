@@ -156,20 +156,20 @@ fn run_once(app: &AppHandle) -> bool {
     match result {
         Ok(applied) => {
             if session != original {
-                let _ = with_data(app, |d| d.store_session(Some(&session)));
+                let _ = with_data(app, |d| d.store_session_if(&original, Some(&session)));
             }
             sync.set(SyncStatus::Synced, String::new(), applied > 0);
             false
         }
         Err(SyncError::Auth(message)) => {
             // La sesión ya no sirve: se olvida (los datos locales se quedan).
-            let _ = with_data(app, |d| d.store_session(None));
+            let _ = with_data(app, |d| d.store_session_if(&original, None));
             sync.set(SyncStatus::SignedOut, message, false);
             false
         }
         Err(e) => {
             if session != original {
-                let _ = with_data(app, |d| d.store_session(Some(&session)));
+                let _ = with_data(app, |d| d.store_session_if(&original, Some(&session)));
             }
             let transient = e.is_transient();
             let status = if transient {

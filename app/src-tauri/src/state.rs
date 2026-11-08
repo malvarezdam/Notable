@@ -256,6 +256,19 @@ impl Data {
         notable_sync::save_session(&mut self.store, session).map_err(|e| e.to_string())
     }
 
+    /// Como [`Data::store_session`], pero solo si la sesión guardada sigue siendo `expected`:
+    /// así una sincronización en curso no pisa una sesión más nueva (cambio de contraseña).
+    pub fn store_session_if(
+        &mut self,
+        expected: &Session,
+        session: Option<&Session>,
+    ) -> Result<()> {
+        if self.session()?.as_ref() == Some(expected) {
+            self.store_session(session)?;
+        }
+        Ok(())
+    }
+
     /// Hora de la última sincronización completa.
     pub fn last_sync(&self) -> Option<i64> {
         notable_sync::last_sync(&self.store).ok().flatten()
@@ -1035,6 +1048,27 @@ mod tests {
         data.store_session(None).unwrap();
         assert!(data.session().unwrap().is_none());
         assert_eq!(data.screen(None).unwrap().children.len(), 1);
+    }
+
+    #[test]
+    fn sync_does_not_overwrite_a_newer_session() {
+        let session = |token: &str| Session {
+            access_token: token.into(),
+            refresh_token: "r".into(),
+            expires_at: 0,
+            user_id: "u1".into(),
+            email: "yo@example.com".into(),
+        };
+        let mut data = Data::in_memory().unwrap();
+        let (old, new) = (session("vieja"), session("nueva"));
+        data.store_session(Some(&new)).unwrap();
+
+        // La sincronización empezó con la sesión vieja: no toca la nueva.
+        data.store_session_if(&old, None).unwrap();
+        assert_eq!(data.session().unwrap(), Some(new.clone()));
+
+        data.store_session_if(&new, None).unwrap();
+        assert_eq!(data.session().unwrap(), None);
     }
 
     #[test]
