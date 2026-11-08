@@ -6,6 +6,10 @@ Todos los cambios importantes de Notable. El formato sigue
 
 ## [Sin publicar]
 
+### Cambiado
+- Descargas: Windows pasa a ser un `.exe` portable (sin instalador) y se dejan de publicar los
+  paquetes de Linux. Se mantienen los APK de Android.
+
 ## [1.0.0] - 2026-11-07
 
 Primera versión de la app nativa en Rust (reemplaza a la versión web anterior).

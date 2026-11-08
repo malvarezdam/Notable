@@ -1,6 +1,6 @@
 # Notable
 
-Gestor de notas y calificaciones para **PC (Windows, Linux) y Android**, escrito en Rust.
+Gestor de notas y calificaciones para **Windows y Android**, escrito en Rust.
 Arma tu carrera, tus ramos y sus evaluaciones como quieras, ingresa las notas y Notable calcula
 tus promedios y cuánto necesitas para llegar a la nota que buscas.
 
@@ -22,22 +22,25 @@ tus promedios y cuánto necesitas para llegar a la nota que buscas.
 - **Respaldo en archivo** (exportar e importar), sin necesidad de cuenta.
 - Tema claro/oscuro y diseño para teléfono.
 
-## Instalar
+## Descargar
 
-Descarga la última versión desde [Releases](https://github.com/malvarezdam/Notable/releases/latest):
+Descarga la última versión desde [Releases](https://github.com/malvarezdam/Notable/releases/latest).
+No hay que instalar nada en el PC:
 
 | Sistema | Archivo |
 |---|---|
-| Windows | `Notable_…_x64-setup.exe` (instalador; o el `.msi`), o `Notable_…_x64-portable.exe` para usarlo sin instalar |
-| Linux | `.AppImage` (dale permiso de ejecución) o `.deb` |
+| Windows | `Notable_…_x64-portable.exe`: se abre con doble clic, desde donde quieras |
 | Android | `Notable-…-android-arm64.apk` (casi todos los teléfonos; `…-android-arm.apk` para los muy antiguos) |
+
+**Windows:** si aparece "Windows protegió tu PC", pulsa *Más información → Ejecutar de todas
+formas* (la app no está firmada con un certificado de pago). Para actualizar, reemplaza el `.exe`
+por el nuevo: tus notas se conservan.
 
 **Android:** abre el `.apk` en el teléfono y permite "instalar apps desconocidas" para la app
 desde la que lo abriste (navegador, Drive…). Para actualizar, instala el nuevo encima: tus notas
 se conservan.
 
-**Windows:** si aparece "Windows protegió tu PC", pulsa *Más información → Ejecutar de todas
-formas* (el instalador no está firmado con un certificado de pago).
+**Linux:** no hay descarga lista; se puede [compilar](#compilar).
 
 ## Cómo se usa
 
@@ -62,7 +65,7 @@ la CLI de Tauri 2 (`cargo install tauri-cli --version "^2"`).
 ```bash
 cargo test --workspace --exclude notable-ui   # pruebas
 cd app/src-tauri && cargo tauri dev           # la app en modo desarrollo
-cd app/src-tauri && cargo tauri build         # instalador de escritorio
+cd app/src-tauri && cargo tauri build --no-bundle  # ejecutable de escritorio (target/release)
 ```
 
 Para Android y la configuración de Supabase, ver [docs/CONFIGURACION.md](docs/CONFIGURACION.md).

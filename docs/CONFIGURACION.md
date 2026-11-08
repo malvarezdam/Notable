@@ -117,8 +117,8 @@ repositorio. Gradle la lee de esa carpeta, o del archivo que diga la variable de
 ## Parte 4 — Publicar (Fase 10)
 Los workflows ya están en `.github/workflows/`:
 - `ci.yml`: formato, clippy y pruebas en cada push a `main`.
-- `release.yml`: al subir un tag `v*` arma Windows (`.exe`/`.msi`), Linux (`.AppImage`/`.deb`) y
-  Android (`.apk`) y los publica en **Releases**.
+- `release.yml`: al subir un tag `v*` arma el `.exe` portable de Windows (sin instalador) y los
+  `.apk` de Android, y los publica en **Releases**.
 
 ### 4.1 Secretos para firmar el APK
 En GitHub → repo `Notable` → **Settings → Secrets and variables → Actions → New repository

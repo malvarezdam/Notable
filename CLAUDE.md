@@ -1,12 +1,12 @@
 # Notable
 
-Gestor de notas/calificaciones en Rust para PC (Windows, Linux) y Android. Proyecto personal open
+Gestor de notas/calificaciones en Rust para Windows y Android (Linux solo compilando). Proyecto personal open
 source: <https://github.com/malvarezdam/Notable> (licencia MIT).
 
 ## Estado
 
-- **Versión publicada: 1.0.0** (tag `v1.0.0`, GitHub Releases: Windows `.exe`/`.msi`, Linux
-  `.AppImage`/`.deb`, APK `arm64` y `arm` firmados). Las Fases 0–10 de [PLAN.md](PLAN.md) están
+- **Versión publicada: 1.0.0** (tag `v1.0.0`, GitHub Releases: `.exe` portable de Windows sin instalador, APK `arm64` y
+  `arm` firmados). Las Fases 0–10 de [PLAN.md](PLAN.md) están
   hechas; su "Registro de decisiones" explica el porqué de cada elección: leerlo antes de cambiar
   algo de fondo.
 - No subir la versión ni crear tags/releases sin que el usuario lo pida. Para publicar, ver
