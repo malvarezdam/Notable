@@ -7,7 +7,9 @@
 //! 3. Eximición ([`Exemption`]): con lo anterior se calcula la "nota de presentación"; si
 //!    alcanza el umbral, la evaluación eximible no cuenta.
 //! 4. Promedio.
-//! 5. Requisitos mínimos ([`Minimum`]): si un hijo no llega a su mínimo, el padre queda
+//! 5. Factor ([`Factor`]): los hijos que son factor no entran al promedio; su nota se convierte
+//!    en un factor que multiplica el promedio (por ejemplo, el laboratorio).
+//! 6. Requisitos mínimos ([`Minimum`]): si un hijo no llega a su mínimo, el padre queda
 //!    reprobado y, si se configuró, su nota queda topada.
 
 use serde::{Deserialize, Serialize};
@@ -32,6 +34,9 @@ pub struct Rules {
     /// En el hijo: nota mínima que debe tener para aprobar el padre.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub minimum: Option<Minimum>,
+    /// En el hijo: no entra al promedio; su nota da un factor que multiplica la nota del padre.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub factor: Option<Factor>,
 }
 
 impl Rules {
@@ -106,6 +111,73 @@ impl Default for Minimum {
         Self {
             grade: 4.0,
             cap: None,
+        }
+    }
+}
+
+/// Nota que multiplica (por ejemplo, "la nota final se multiplica por el factor de
+/// laboratorio, entre 0,8 y 1,1").
+///
+/// La nota del hijo, en su propia escala, se lleva al factor de forma proporcional: la nota
+/// mínima de la escala da `min` y la máxima da `max`. Con `neutral`, esa nota da factor 1 y se
+/// usan dos tramos (de la mínima a `neutral` y de `neutral` a la máxima). El resultado se acota
+/// a la escala del padre.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Factor {
+    /// Factor con la nota mínima de la escala.
+    pub min: f64,
+    /// Factor con la nota máxima de la escala.
+    pub max: f64,
+    /// Nota (en la escala del hijo) que deja el factor en 1. `None` = proporcional de `min` a
+    /// `max`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub neutral: Option<f64>,
+}
+
+impl Default for Factor {
+    fn default() -> Self {
+        Self {
+            min: 0.9,
+            max: 1.1,
+            neutral: None,
+        }
+    }
+}
+
+impl Factor {
+    /// `true` si los valores tienen sentido: finitos, `0 ≤ min ≤ max` y, con `neutral`,
+    /// `min ≤ 1 ≤ max`.
+    pub fn is_valid(&self) -> bool {
+        let finite = self.min.is_finite()
+            && self.max.is_finite()
+            && self.neutral.is_none_or(|n| n.is_finite());
+        finite
+            && self.min >= 0.0
+            && self.min <= self.max
+            && (self.neutral.is_none() || (self.min <= 1.0 && 1.0 <= self.max))
+    }
+
+    /// Factor que da `grade`, en una escala de `scale_min` a `scale_max`. Fuera de la escala se
+    /// usa el extremo.
+    pub fn value(&self, grade: f64, scale_min: f64, scale_max: f64) -> f64 {
+        let g = grade.clamp(scale_min, scale_max);
+        let span = |x: f64, a0: f64, a1: f64, b0: f64, b1: f64| {
+            if a1 <= a0 {
+                b1
+            } else {
+                b0 + (x - a0) * (b1 - b0) / (a1 - a0)
+            }
+        };
+        match self.neutral {
+            Some(n) if n > scale_min && n < scale_max => {
+                if g < n {
+                    span(g, scale_min, n, self.min, 1.0)
+                } else {
+                    span(g, n, scale_max, 1.0, self.max)
+                }
+            }
+            _ => span(g, scale_min, scale_max, self.min, self.max),
         }
     }
 }

@@ -53,6 +53,9 @@ pub struct Item {
     pub weight_note: Option<String>,
     /// Créditos propios.
     pub credits: Option<f64>,
+    /// Es un factor: no entra al promedio (no lleva peso), multiplica la nota de arriba.
+    #[serde(default)]
+    pub is_factor: bool,
     /// Qué le hizo una regla opcional ("Eliminada", "Eximida"…).
     pub effect: Option<String>,
     /// Reglas activas en este nodo, en corto ("Mínimo 4,0").
@@ -180,6 +183,8 @@ pub struct RulesSettings {
     pub replaces: Option<ReplaceSettings>,
     pub exemption: Option<ExemptionSettings>,
     pub minimum: Option<MinimumSettings>,
+    #[serde(default)]
+    pub factor: Option<FactorSettings>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -210,6 +215,39 @@ pub struct ExemptionSettings {
 pub struct MinimumSettings {
     pub grade: f64,
     pub cap: Option<f64>,
+}
+
+/// Nota que multiplica la nota de arriba (por ejemplo, el laboratorio): con la nota mínima de su
+/// escala da `min`, con la máxima da `max` y, si hay `neutral`, esa nota da 1.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct FactorSettings {
+    pub min: f64,
+    pub max: f64,
+    pub neutral: Option<f64>,
+}
+
+impl Default for FactorSettings {
+    fn default() -> Self {
+        Self {
+            min: 0.9,
+            max: 1.1,
+            neutral: None,
+        }
+    }
+}
+
+/// Un lugar al que se puede mover un nodo (comando `destinations`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Destination {
+    /// Id del nuevo padre. `None` = nivel superior (inicio).
+    pub id: Option<String>,
+    pub name: String,
+    /// Profundidad en el árbol (0 = inicio), para sangrar la lista.
+    pub depth: usize,
+    /// Es el padre actual del nodo.
+    pub current: bool,
+    /// Hoy es una evaluación con nota: al mover algo adentro, esa nota deja de contar.
+    pub has_grade: bool,
 }
 
 /// Un cambio en un nodo (comando `update`).

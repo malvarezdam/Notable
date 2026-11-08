@@ -17,7 +17,8 @@ tus promedios y cuánto necesitas para llegar a la nota que buscas.
   redondear en cada nivel, conversión entre escalas.
 - **Nota objetivo:** "Necesitas 4,3 en el Certamen 2".
 - **Reglas opcionales** (apagadas hasta que las actives): eliminar las peores notas, examen que
-  reemplaza a la peor, eximición, nota mínima para aprobar, promedio por créditos.
+  reemplaza a la peor, eximición, nota mínima para aprobar, promedio por créditos,
+  factor que multiplica la nota (por ejemplo, el laboratorio).
 - **Sincronización opcional** entre dispositivos con una cuenta (correo y contraseña).
 - **Respaldo en archivo** (exportar e importar), sin necesidad de cuenta.
 - Tema claro/oscuro y diseño para teléfono.
@@ -46,12 +47,14 @@ se conservan.
 
 1. **Agrega** lo que quieras organizar: una carrera, un año, un semestre o directamente un ramo.
    Entra a cada uno y agrega sus evaluaciones o secciones (por ejemplo, "Certámenes" con sus
-   certámenes adentro). Los nombres los pones tú: todo es un árbol.
+   certámenes adentro). Los nombres los pones tú: todo es un árbol. ¿Lo pusiste en el lugar
+   equivocado? Con **⇄** lo mueves a otro lado con todo lo que tiene adentro.
 2. **Ingresa las notas** en las evaluaciones. Cada nivel muestra su promedio con lo que hay
    ("nota parcial") hasta que estén todas ("nota final").
 3. ¿Las evaluaciones no valen lo mismo? Pulsa **Ponderar** y escribe el % de cada una.
 4. En **⚙ Ajustes** de cada nivel: nota objetivo, escala, redondeo, créditos y, plegadas,
-   las **reglas opcionales**.
+   las **reglas opcionales**. Por ejemplo, si el laboratorio multiplica la nota final
+   (factor entre 0,8 y 1,1), ábrelo y activa **Multiplica la nota de arriba**.
 5. Opcional: pulsa **☁** para crear una cuenta y sincronizar el PC y el teléfono. Sin cuenta,
    todo se guarda solo en el dispositivo.
 6. Respaldo: en **☁ → Respaldo en archivo** puedes **exportar** todo a un archivo `.json` y

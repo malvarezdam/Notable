@@ -35,6 +35,9 @@ pub struct NodeResult {
     pub requirements_met: bool,
     /// Qué le hizo una regla opcional del padre a este nodo (eliminado, reemplazado, eximido…).
     pub effect: Option<Effect>,
+    /// Si el nodo es un factor ([`crate::Factor`]) y tiene nota: el factor con que multiplica la
+    /// nota del padre.
+    pub factor: Option<f64>,
     /// Peso del nodo dentro de su padre en %, ya convertido si se expresó respecto a otro
     /// ancestro. Es 0 si el padre pondera y el nodo no tiene peso. Para el promedio simple es
     /// 100 / cantidad de hermanos.
@@ -244,8 +247,14 @@ impl<'a> Calculator<'a> {
         let weighted = parent_node.aggregation == Aggregation::Weighted;
         let mut weights = Vec::with_capacity(children.len());
         let mut uses_base = false;
+        // Los factores no entran al promedio: no tienen peso ni cuentan para el simple.
+        let averaged = children.iter().filter(|c| c.rules.factor.is_none()).count();
 
         for child in &children {
+            if child.rules.factor.is_some() {
+                weights.push(0.0);
+                continue;
+            }
             let weight = match parent_node.aggregation {
                 Aggregation::Weighted => match child.weight {
                     Some(w) => self.convert_weight(child.id, parent, w, &mut uses_base),
@@ -263,7 +272,7 @@ impl<'a> Calculator<'a> {
                         0.0
                     }
                 },
-                Aggregation::Simple => 100.0 / children.len() as f64,
+                Aggregation::Simple => 100.0 / averaged as f64,
             };
             weights.push(weight);
         }
@@ -401,6 +410,7 @@ impl<'a> Calculator<'a> {
             complete: combined.complete,
             requirements_met: combined.requirements_met,
             effect: None,
+            factor: None,
             weight: layout.weight,
             share: layout.share,
             config,
@@ -419,6 +429,8 @@ impl<'a> Calculator<'a> {
         // Hijos con requisito mínimo: (id, mínimo en la escala del padre, regla, requisitos
         // del hijo cumplidos).
         let mut minimums: Vec<(NodeId, f64, Minimum, bool)> = Vec::new();
+        // Hijos que multiplican: (entrada, factor que dan si tienen nota).
+        let mut factors: Vec<(Entry, Option<f64>)> = Vec::new();
 
         for &child in children {
             let r = self.compute(child);
@@ -433,6 +445,11 @@ impl<'a> Calculator<'a> {
                 weight: r.weight,
                 complete: r.complete,
             };
+            if let Some(f) = rules.factor {
+                let value = r.grade.map(|g| f.value(g, r.config.min, r.config.max));
+                factors.push((entry, value));
+                continue;
+            }
             match (rules.replaces, rules.exemption) {
                 (Some(rep), _) => replacers.push((entry, rep)),
                 (None, Some(ex)) => exemptable.push((entry, ex)),
@@ -525,13 +542,25 @@ impl<'a> Calculator<'a> {
         }
 
         // 4. Promedio.
-        let avg = average(&counted);
+        let mut avg = average(&counted);
 
-        // 5. Requisitos mínimos (con la nota ya reemplazada, si se reemplazó).
+        // 5. Factores: multiplican el promedio, acotado a la escala.
+        for (entry, value) in &factors {
+            complete &= entry.complete;
+            if let Some(f) = *value {
+                if let Some(r) = self.results.get_mut(&entry.id) {
+                    r.factor = Some(f);
+                }
+                avg = avg.map(|a| (a * f).clamp(config.min, config.max));
+            }
+        }
+
+        // 6. Requisitos mínimos (con la nota ya reemplazada, si se reemplazó).
         let effective: HashMap<NodeId, Option<f64>> = regular
             .iter()
             .chain(replacers.iter().map(|(e, _)| e))
             .chain(exemptable.iter().map(|(e, _)| e))
+            .chain(factors.iter().map(|(e, _)| e))
             .map(|e| (e.id, e.grade))
             .collect();
         let mut requirements_met = true;

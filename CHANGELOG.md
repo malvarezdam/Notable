@@ -6,13 +6,10 @@ Todos los cambios importantes de Notable. El formato sigue
 
 ## [Sin publicar]
 
-### Cambiado
-- Descargas: Windows pasa a ser un `.exe` portable (sin instalador) y se dejan de publicar los
-  paquetes de Linux. Se mantienen los APK de Android.
-
 ## [1.0.0] - 2026-11-07
 
-Primera versión de la app nativa en Rust (reemplaza a la versión web anterior).
+Primera versión de la app nativa en Rust (reemplaza a la versión web anterior). Los archivos de
+la release se actualizaron el 2026-11-08 con lo marcado como *(08-11)*.
 
 ### Agregado
 - Árbol libre de carreras, años, ramos, secciones y evaluaciones, con migas de pan.
@@ -29,7 +26,12 @@ Primera versión de la app nativa en Rust (reemplaza a la versión web anterior)
 - Cuenta opcional y sincronización entre dispositivos con Supabase (gana el cambio más reciente,
   funciona sin conexión).
 - Tema claro/oscuro y diseño para teléfono.
-- Instalador para Windows, paquetes para Linux y APK para Android.
+- *(08-11)* **Mover** una sección o evaluación a otro lugar (botón ⇄), con todo lo que tiene
+  adentro, sin tener que borrarla.
+- *(08-11)* Regla opcional **factor**: una nota (por ejemplo, el laboratorio) que no se promedia
+  sino que multiplica la nota de arriba por un factor dentro de un rango (puede subirla o
+  bajarla), con una nota opcional que deja el factor en 1.
+- `.exe` portable para Windows (sin instalador) y APK para Android.
 
 [Sin publicar]: https://github.com/malvarezdam/Notable/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/malvarezdam/Notable/releases/tag/v1.0.0

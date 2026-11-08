@@ -6,7 +6,7 @@ mod sync;
 
 use std::sync::Mutex;
 
-use notable_api::{Account, Change, Screen, SyncStatus};
+use notable_api::{Account, Change, Destination, Screen, SyncStatus};
 use notable_sync::{SignUp, Supabase};
 use tauri::{Manager, State};
 
@@ -102,6 +102,21 @@ fn shift(
     sync: State<'_, SyncHandle>,
 ) -> state::Result<()> {
     change(&state, &sync, |d| d.shift(&id, delta))
+}
+
+#[tauri::command]
+fn destinations(id: String, state: State<'_, AppState>) -> state::Result<Vec<Destination>> {
+    with(&state, |d| d.destinations(&id))
+}
+
+#[tauri::command]
+fn move_to(
+    id: String,
+    parent: Option<String>,
+    state: State<'_, AppState>,
+    sync: State<'_, SyncHandle>,
+) -> state::Result<()> {
+    change(&state, &sync, |d| d.move_to(&id, parent.as_deref()))
 }
 
 #[tauri::command]
@@ -341,6 +356,8 @@ pub fn run() {
             restore,
             set_grade,
             shift,
+            destinations,
+            move_to,
             update,
             account,
             sign_in,

@@ -7,9 +7,9 @@ use leptos::ev::KeyboardEvent;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use notable_api::{
-    Account, Change, Details, ExemptionSettings, GoalKind, MinimumSettings, Mode, ReplaceSettings,
-    RulesSettings, Scale, ScaleSettings, Screen, SyncStatus, format_grade, format_number,
-    parse_grade,
+    Account, Change, Destination, Details, ExemptionSettings, FactorSettings, GoalKind,
+    MinimumSettings, Mode, ReplaceSettings, RulesSettings, Scale, ScaleSettings, Screen,
+    SyncStatus, format_grade, format_number, parse_grade,
 };
 use serde::Serialize;
 use serde::de::{DeserializeOwned, IgnoredAny};
@@ -67,6 +67,12 @@ struct ShiftArgs {
 }
 
 #[derive(Serialize)]
+struct MoveArgs {
+    id: String,
+    parent: Option<String>,
+}
+
+#[derive(Serialize)]
 struct NoArgs {}
 
 #[derive(Serialize)]
@@ -102,6 +108,8 @@ struct Ctx {
     account: RwSignal<Account>,
     /// Panel de cuenta abierto.
     account_open: RwSignal<bool>,
+    /// Nodo que se está moviendo (id, nombre): abre el diálogo "Mover a…".
+    moving: RwSignal<Option<(String, String)>>,
 }
 
 impl Ctx {
@@ -222,6 +230,7 @@ fn App() -> impl IntoView {
         settings: RwSignal::new(false),
         account: RwSignal::new(Account::default()),
         account_open: RwSignal::new(false),
+        moving: RwSignal::new(None),
     };
     provide_context(ctx);
     ctx.reload();
@@ -250,6 +259,9 @@ fn App() -> impl IntoView {
             <Children />
             <AddForm />
         </main>
+        <Show when=move || ctx.moving.with(Option::is_some)>
+            <MoveDialog />
+        </Show>
         <ToastView />
     }
 }
@@ -843,9 +855,11 @@ fn Row(id: String) -> impl IntoView {
     };
 
     // Peso (si el padre pondera) o créditos (si promedia por créditos).
+    let is_factor = Memo::new(move |_| item.with(|i| i.as_ref().is_some_and(|i| i.is_factor)));
     let weight_view = {
         let id = id.clone();
         move || match parent_mode.get() {
+            _ if is_factor.get() => ().into_any(),
             Mode::Weighted => {
                 let id_w = id.clone();
                 let id_b = id.clone();
@@ -1009,6 +1023,7 @@ fn Row(id: String) -> impl IntoView {
         draft.set(name());
         editing.set(true);
     };
+    let id_move = id.clone();
     let delete = move |_| {
         let (id, name) = (id.clone(), name());
         let args = IdArgs { id: id.clone() };
@@ -1025,11 +1040,12 @@ fn Row(id: String) -> impl IntoView {
             );
         });
     };
+    let move_to = move |_| ctx.moving.set(Some((id_move.clone(), name())));
     let dimmed = move || {
         item.with(|i| {
             i.as_ref()
                 .and_then(|i| i.effect.as_deref())
-                .is_some_and(|e| e != "Reemplaza a" && !e.starts_with("Reemplaza a"))
+                .is_some_and(|e| !e.starts_with("Reemplaza a") && !e.starts_with("Multiplica"))
         })
     };
 
@@ -1040,14 +1056,105 @@ fn Row(id: String) -> impl IntoView {
             {weight_view}
             {grade_view}
             <div class="actions">
-                <button class="icon" tabindex="-1" title="Renombrar o mover" on:click=rename>
+                <button class="icon" tabindex="-1" title="Renombrar u ordenar" on:click=rename>
                     "✎"
+                </button>
+                <button class="icon" tabindex="-1" title="Mover a otro lugar" on:click=move_to>
+                    "⇄"
                 </button>
                 <button class="icon" tabindex="-1" title="Borrar" on:click=delete>
                     "🗑"
                 </button>
             </div>
         </li>
+    }
+}
+
+/// Diálogo "Mover a…": lista el inicio y todo el árbol (salvo el propio nodo y lo de adentro).
+/// Se mueve con todo lo que tiene adentro y queda al final del lugar elegido.
+#[component]
+fn MoveDialog() -> impl IntoView {
+    let ctx = expect_context::<Ctx>();
+    let (id, name) = ctx.moving.get_untracked().unwrap_or_default();
+    let destinations = RwSignal::new(None::<Vec<Destination>>);
+    spawn_local({
+        let id = id.clone();
+        async move {
+            match call::<_, Vec<Destination>>("destinations", &IdArgs { id }).await {
+                Ok(list) => destinations.set(Some(list)),
+                Err(e) => {
+                    ctx.moving.set(None);
+                    ctx.error(e);
+                }
+            }
+        }
+    });
+    let close = move || ctx.moving.set(None);
+    let _escape = window_event_listener(leptos::ev::keydown, move |ev| {
+        if ev.key() == "Escape" {
+            close();
+        }
+    });
+    let choose = move |parent: Option<String>| {
+        close();
+        let args = MoveArgs {
+            id: id.clone(),
+            parent,
+        };
+        ctx.run("move_to", args, |_| {});
+    };
+
+    view! {
+        <div class="backdrop" on:click=move |_| close()>
+            <section
+                class="dialog"
+                role="dialog"
+                aria-label="Mover a otro lugar"
+                on:click=|ev| ev.stop_propagation()
+            >
+                <h2>{format!("Mover «{name}» a…")}</h2>
+                <p class="hint">"Se mueve con todo lo que tiene adentro y queda al final."</p>
+                <ul class="destinations">
+                    {move || {
+                        let Some(list) = destinations.get() else {
+                            return view! { <li class="hint">"Cargando…"</li> }.into_any();
+                        };
+                        list.into_iter()
+                            .map(|d| {
+                                let choose = choose.clone();
+                                let indent = format!("padding-left: {}px", 10 + d.depth * 18);
+                                let parent = d.id.clone();
+                                view! {
+                                    <li>
+                                        <button
+                                            style=indent
+                                            disabled=d.current
+                                            on:click=move |_| choose(parent.clone())
+                                        >
+                                            {if d.id.is_none() { format!("⌂ {}", d.name) } else { d.name }}
+                                            {d.current.then(|| view! { <span class="tag">"(está aquí)"</span> })}
+                                            {d
+                                                .has_grade
+                                                .then(|| {
+                                                    view! {
+                                                        <span class="tag" title="Su nota dejará de contar: pasará a calcularse con lo de adentro">
+                                                            "(tiene nota)"
+                                                        </span>
+                                                    }
+                                                })}
+                                        </button>
+                                    </li>
+                                }
+                            })
+                            .collect_view()
+                            .into_any()
+                    }}
+                </ul>
+                <div class="buttons">
+                    <button class="chip" on:click=move |_| close()>"Cancelar"</button>
+                </div>
+            </section>
+        </div>
     }
 }
 
@@ -1308,6 +1415,7 @@ fn RulesEditor(details: Memo<Option<Details>>, has_children: Memo<bool>) -> impl
         r.replaces = on.then(ReplaceSettings::default);
         if on {
             r.exemption = None;
+            r.factor = None;
         }
         set(r);
     };
@@ -1329,6 +1437,7 @@ fn RulesEditor(details: Memo<Option<Details>>, has_children: Memo<bool>) -> impl
         });
         if on {
             r.replaces = None;
+            r.factor = None;
         }
         set(r);
     };
@@ -1368,6 +1477,33 @@ fn RulesEditor(details: Memo<Option<Details>>, has_children: Memo<bool>) -> impl
             set(r);
         }
     });
+
+    // Factor (por ejemplo, el laboratorio multiplica la nota de arriba).
+    let factor = move || rules().factor;
+    let toggle_factor = move |on: bool| {
+        let mut r = rules();
+        r.factor = on.then(FactorSettings::default);
+        if on {
+            r.replaces = None;
+            r.exemption = None;
+        }
+        set(r);
+    };
+    let edit_factor = move |f: fn(&mut FactorSettings, Option<f64>)| {
+        Callback::new(move |v: Option<f64>| {
+            let mut r = rules();
+            if let Some(fs) = r.factor.as_mut() {
+                f(fs, v);
+                set(r);
+            }
+        })
+    };
+    let factor_min = Signal::derive(move || factor().map(|f| f.min));
+    let set_factor_min = edit_factor(|f, v| f.min = v.unwrap_or(f.min));
+    let factor_max = Signal::derive(move || factor().map(|f| f.max));
+    let set_factor_max = edit_factor(|f, v| f.max = v.unwrap_or(f.max));
+    let factor_neutral = Signal::derive(move || factor().and_then(|f| f.neutral));
+    let set_factor_neutral = edit_factor(|f, v| f.neutral = v);
 
     view! {
         <p class="hint">"Todas vienen apagadas. Actívalas solo si tu ramo las usa."</p>
@@ -1491,6 +1627,38 @@ fn RulesEditor(details: Memo<Option<Details>>, has_children: Memo<bool>) -> impl
                         <label>
                             "Si no se cumple, la nota de arriba queda en a lo más "
                             <NumberField value=min_cap on_set=set_min_cap placeholder="sin tope" />
+                        </label>
+                    </div>
+                </Show>
+            </div>
+
+            <div class="rule">
+                <label class="option">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || factor().is_some()
+                        on:change=move |ev| toggle_factor(event_target_checked(&ev))
+                    />
+                    "Multiplica la nota de arriba (factor, por ejemplo el laboratorio)"
+                </label>
+                <Show when=move || factor().is_some()>
+                    <div class="sub">
+                        <p class="hint">
+                            "No entra al promedio: su nota da un factor que multiplica la nota de arriba "
+                            "(puede subirla o bajarla). La nota mínima de la escala da el primer factor y la "
+                            "máxima el segundo; entre medio, proporcional."
+                        </p>
+                        <label>
+                            "Factor con la nota mínima "
+                            <NumberField value=factor_min on_set=set_factor_min />
+                        </label>
+                        <label>
+                            "Factor con la nota máxima "
+                            <NumberField value=factor_max on_set=set_factor_max />
+                        </label>
+                        <label>
+                            "Nota que deja el factor en 1 "
+                            <NumberField value=factor_neutral on_set=set_factor_neutral placeholder="opcional" />
                         </label>
                     </div>
                 </Show>

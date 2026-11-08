@@ -355,6 +355,12 @@ impl Tree {
         if rules.replaces.is_some() && rules.exemption.is_some() {
             return Err(TreeError::InvalidRule);
         }
+        // Un factor no se promedia, así que no puede además reemplazar ni eximirse.
+        if let Some(f) = rules.factor
+            && (!f.is_valid() || rules.replaces.is_some() || rules.exemption.is_some())
+        {
+            return Err(TreeError::InvalidRule);
+        }
         if let Some(Replacement {
             target: ReplaceTarget::Node(target),
             ..

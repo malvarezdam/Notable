@@ -5,12 +5,12 @@
 use std::path::Path;
 
 use notable_api::{
-    Change, ConfigView, Crumb, Details, ExemptionSettings, Goal, GoalKind, Item, MinimumSettings,
-    Mode, ReplaceSettings, RulesSettings, Scale, ScaleSettings, Screen, format_grade,
-    format_number,
+    Change, ConfigView, Crumb, Destination, Details, ExemptionSettings, FactorSettings, Goal,
+    GoalKind, Item, MinimumSettings, Mode, ReplaceSettings, RulesSettings, Scale, ScaleSettings,
+    Screen, format_grade, format_number,
 };
 use notable_core::{
-    Aggregation, Conversion, Effect, Evaluation, Exemption, GradeConfig, Minimum, NodeId,
+    Aggregation, Conversion, Effect, Evaluation, Exemption, Factor, GradeConfig, Minimum, NodeId,
     ReplaceTarget, Replacement, Requirement, Rounding, Rules, Tree, Warning,
 };
 use notable_store::{Store, SyncRow};
@@ -126,6 +126,57 @@ impl Data {
         self.save()
     }
 
+    /// Lugares a los que se puede mover `id`: el inicio y todos los nodos visibles, salvo él
+    /// mismo y lo que tiene adentro. En orden del árbol, con su profundidad.
+    pub fn destinations(&self, id: &str) -> Result<Vec<Destination>> {
+        let id = parse_id(id)?;
+        let parent = self.tree.get(id).ok_or("no existe el nodo")?.parent;
+        let mut list = vec![Destination {
+            id: None,
+            name: "Inicio".to_owned(),
+            depth: 0,
+            current: parent.is_none(),
+            has_grade: false,
+        }];
+        // Recorrido en profundidad, sin entrar al propio nodo.
+        let mut stack: Vec<(NodeId, usize)> = self.tree.roots().map(|n| (n.id, 1)).collect();
+        stack.reverse();
+        while let Some((node, depth)) = stack.pop() {
+            if node == id {
+                continue;
+            }
+            let leaf = self.tree.is_leaf(node);
+            list.push(Destination {
+                id: Some(node.to_string()),
+                name: self.name(node),
+                depth,
+                current: parent == Some(node),
+                has_grade: leaf && self.tree.get(node).is_some_and(|n| n.grade.is_some()),
+            });
+            let children: Vec<NodeId> = self.tree.children(Some(node)).map(|c| c.id).collect();
+            stack.extend(children.into_iter().rev().map(|c| (c, depth + 1)));
+        }
+        Ok(list)
+    }
+
+    /// Mueve `id` al final de `parent` (`None` = inicio), con todo lo que tiene adentro.
+    pub fn move_to(&mut self, id: &str, parent: Option<&str>) -> Result<()> {
+        let id = parse_id(id)?;
+        let parent = parent.map(parse_id).transpose()?;
+        if self.tree.get(id).ok_or("no existe el nodo")?.parent == parent {
+            return Ok(());
+        }
+        self.tree
+            .move_node(id, parent, usize::MAX)
+            .map_err(|e| match e {
+                notable_core::TreeError::Cycle(_) => {
+                    "no se puede mover algo dentro de sí mismo".to_owned()
+                }
+                e => e.to_string(),
+            })?;
+        self.save()
+    }
+
     /// Aplica un cambio de ajustes a un nodo.
     pub fn update(&mut self, id: &str, change: Change) -> Result<()> {
         let id = parse_id(id)?;
@@ -139,7 +190,12 @@ impl Data {
                 };
                 // Al ponderar por primera vez, repartir 100 % en partes iguales para partir.
                 if aggregation == Aggregation::Weighted {
-                    let children: Vec<NodeId> = tree.children(Some(id)).map(|c| c.id).collect();
+                    // Los factores no llevan peso: no entran al reparto.
+                    let children: Vec<NodeId> = tree
+                        .children(Some(id))
+                        .filter(|c| c.rules.factor.is_none())
+                        .map(|c| c.id)
+                        .collect();
                     let unweighted = children
                         .iter()
                         .all(|c| tree.get(*c).is_some_and(|n| n.weight.is_none()));
@@ -327,6 +383,13 @@ impl Data {
                 format_grade(min.grade, config.decimals)
             ));
         }
+        if let Some(f) = rules.factor {
+            badges.push(format!(
+                "Factor {} a {}",
+                format_number(f.min),
+                format_number(f.max)
+            ));
+        }
 
         let effect = result.effect.map(|e| match e {
             Effect::Dropped => "Eliminada (de las peores)".to_owned(),
@@ -334,6 +397,12 @@ impl Data {
             Effect::Replaces { node } => format!("Reemplaza a {}", self.name(node)),
             Effect::Unused => "No se usó".to_owned(),
             Effect::Exempt => "Eximida".to_owned(),
+        });
+        // El factor no es un efecto de una regla del padre, pero se muestra igual.
+        let effect = effect.or_else(|| {
+            result
+                .factor
+                .map(|f| format!("Multiplica la nota por {}", format_number(f)))
         });
 
         Item {
@@ -358,6 +427,7 @@ impl Data {
             weight_base: node.weight_base.map(|b| b.to_string()),
             weight_note,
             credits: node.credits,
+            is_factor: node.rules.factor.is_some(),
             effect,
             badges,
             warnings: eval
@@ -397,6 +467,11 @@ impl Data {
             minimum: rules.minimum.map(|m| MinimumSettings {
                 grade: m.grade,
                 cap: m.cap,
+            }),
+            factor: rules.factor.map(|f| FactorSettings {
+                min: f.min,
+                max: f.max,
+                neutral: f.neutral,
             }),
         };
 
@@ -596,6 +671,11 @@ fn to_rules(r: &RulesSettings) -> Result<Rules> {
         minimum: r.minimum.map(|m| Minimum {
             grade: m.grade,
             cap: m.cap,
+        }),
+        factor: r.factor.map(|f| Factor {
+            min: f.min,
+            max: f.max,
+            neutral: f.neutral,
         }),
     })
 }
@@ -955,5 +1035,95 @@ mod tests {
         data.store_session(None).unwrap();
         assert!(data.session().unwrap().is_none());
         assert_eq!(data.screen(None).unwrap().children.len(), 1);
+    }
+
+    #[test]
+    fn move_a_section_somewhere_else() {
+        let mut data = Data::in_memory().unwrap();
+        let course = data.create(None, "Física").unwrap();
+        let lab = data.create(Some(&course), "Laboratorio").unwrap();
+        let l1 = data.create(Some(&lab), "L1").unwrap();
+        data.set_grade(&l1, Some(6.0)).unwrap();
+        let other = data.create(None, "Química").unwrap();
+
+        // Destinos: inicio y todo lo visible, salvo el propio nodo y lo de adentro.
+        let dest = data.destinations(&lab).unwrap();
+        let names: Vec<(&str, usize, bool)> = dest
+            .iter()
+            .map(|d| (d.name.as_str(), d.depth, d.current))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                ("Inicio", 0, false),
+                ("Física", 1, true),
+                ("Química", 1, false)
+            ]
+        );
+
+        // Mover con todo lo de adentro (y sus notas).
+        data.move_to(&lab, Some(&other)).unwrap();
+        let screen = data.screen(Some(&other)).unwrap();
+        assert_eq!(screen.children.len(), 1);
+        assert_eq!(screen.children[0].display, "6,0");
+        assert!(data.screen(Some(&course)).unwrap().children.is_empty());
+        assert_eq!(data.screen(Some(&lab)).unwrap().path[0].name, "Química");
+
+        // Sacarlo al inicio y no dejar meterlo dentro de sí mismo.
+        data.move_to(&lab, None).unwrap();
+        assert_eq!(data.screen(None).unwrap().children.len(), 3);
+        assert!(data.move_to(&lab, Some(&l1)).is_err());
+
+        // Una evaluación con nota se marca: si se mete algo adentro, su nota deja de contar.
+        let dest = data.destinations(&course).unwrap();
+        assert!(dest.iter().any(|d| d.name == "L1" && d.has_grade));
+    }
+
+    #[test]
+    fn lab_factor_multiplies_the_course() {
+        let mut data = Data::in_memory().unwrap();
+        let course = data.create(None, "Física").unwrap();
+        let c1 = data.create(Some(&course), "C1").unwrap();
+        let lab = data.create(Some(&course), "Laboratorio").unwrap();
+        data.set_grade(&c1, Some(5.0)).unwrap();
+        data.set_grade(&lab, Some(7.0)).unwrap();
+        let rules = RulesSettings {
+            factor: Some(FactorSettings {
+                min: 0.8,
+                max: 1.1,
+                neutral: None,
+            }),
+            ..RulesSettings::default()
+        };
+        data.update(&lab, Change::Rules(rules.clone())).unwrap();
+
+        let screen = data.screen(Some(&course)).unwrap();
+        assert_eq!(screen.current.unwrap().display, "5,5");
+        let lab_item = &screen.children[1];
+        assert_eq!(
+            lab_item.effect.as_deref(),
+            Some("Multiplica la nota por 1,1")
+        );
+        assert_eq!(lab_item.badges, ["Factor 0,8 a 1,1"]);
+        let details = data.screen(Some(&lab)).unwrap().details.unwrap();
+        assert_eq!(details.rules, rules);
+
+        // Al ponderar, el 100 % se reparte solo entre lo que se promedia.
+        data.update(&course, Change::Mode(Mode::Weighted)).unwrap();
+        let screen = data.screen(Some(&course)).unwrap();
+        assert_eq!(screen.children[0].weight, Some(100.0));
+        assert_eq!(screen.children[1].weight, None);
+        assert!(screen.details.unwrap().warnings.is_empty());
+
+        // Un factor imposible se rechaza.
+        let bad = RulesSettings {
+            factor: Some(FactorSettings {
+                min: 1.2,
+                max: 0.8,
+                neutral: None,
+            }),
+            ..RulesSettings::default()
+        };
+        assert!(data.update(&lab, Change::Rules(bad)).is_err());
     }
 }
