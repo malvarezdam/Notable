@@ -260,6 +260,38 @@ async fn change_password(
     )
 }
 
+/// Pide el código para recuperar una contraseña olvidada. Devuelve un mensaje para mostrar.
+#[tauri::command]
+async fn send_recovery(email: String) -> state::Result<String> {
+    blocking(move || {
+        Supabase::default()
+            .send_recovery(&email)
+            .map_err(|e| e.to_string())
+    })
+    .await?;
+    Ok("Si hay una cuenta con ese correo, te enviamos un código. Revisa también el spam.".into())
+}
+
+/// Cambia una contraseña olvidada con el código del correo y deja la sesión iniciada.
+#[tauri::command]
+async fn reset_password(
+    email: String,
+    code: String,
+    password: String,
+    state: State<'_, AppState>,
+    sync: State<'_, SyncHandle>,
+) -> state::Result<String> {
+    let session = blocking(move || {
+        Supabase::default()
+            .reset_password(&email, &code, &password)
+            .map_err(|e| e.to_string())
+    })
+    .await?;
+    with(&state, |d| d.signed_in(&session))?;
+    sync.now();
+    Ok("Contraseña cambiada. Ya iniciaste sesión.".into())
+}
+
 #[tauri::command]
 fn sync_now(sync: State<'_, SyncHandle>) {
     sync.now();
@@ -387,6 +419,8 @@ pub fn run() {
             sign_up,
             sign_out,
             change_password,
+            send_recovery,
+            reset_password,
             sync_now,
             export_backup,
             import_backup

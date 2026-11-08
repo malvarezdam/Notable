@@ -53,6 +53,14 @@ Si dice que no has iniciado sesión: `gh auth login` y sigue las instrucciones (
    - Activado (por defecto): cada cuenta nueva debe confirmar su correo. El correo gratis de Supabase
      tiene un límite muy bajo (unos pocos por hora); para uso personal alcanza.
    - Si te molesta, puedes desactivarlo. Para una app personal es aceptable.
+3. **Authentication** → **URL Configuration** → **Site URL**: pon `https://github.com/malvarezdam/Notable/releases/latest`
+   (por defecto es `localhost:3000` y el link de confirmación termina en un error).
+4. **Recuperar contraseña:** la app pide un código, así que en **Authentication** → **Emails** →
+   **Reset password** el mensaje debe mostrarlo. Deja el cuerpo así:
+   ```html
+   <h2>Recuperar tu contraseña de Notable</h2>
+   <p>Escribe este código en la app: <strong>{{ .Token }}</strong></p>
+   ```
 
 ### 2.4 Datos para la app
 1. Ve a **Project Settings** → **API Keys** (o **Data API**, según la versión del panel).

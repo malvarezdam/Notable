@@ -82,6 +82,18 @@ struct PasswordArgs {
 }
 
 #[derive(Serialize)]
+struct EmailArgs {
+    email: String,
+}
+
+#[derive(Serialize)]
+struct ResetArgs {
+    email: String,
+    code: String,
+    password: String,
+}
+
+#[derive(Serialize)]
 struct LoginArgs {
     email: String,
     password: String,
@@ -299,6 +311,31 @@ fn SyncButton() -> impl IntoView {
     }
 }
 
+/// Campo de contraseña; Enter ejecuta `on_enter`.
+#[component]
+fn PasswordInput(
+    value: RwSignal<String>,
+    placeholder: &'static str,
+    autocomplete: &'static str,
+    on_enter: Callback<()>,
+) -> impl IntoView {
+    view! {
+        <input
+            class="text"
+            type="password"
+            placeholder=placeholder
+            autocomplete=autocomplete
+            prop:value=move || value.get()
+            on:input=move |ev| value.set(event_target_value(&ev))
+            on:keydown=move |ev: KeyboardEvent| {
+                if ev.key() == "Enter" {
+                    on_enter.run(())
+                }
+            }
+        />
+    }
+}
+
 /// Panel de cuenta: entrar, crear cuenta, estado y cerrar sesión. La cuenta es opcional.
 #[component]
 fn AccountPanel() -> impl IntoView {
@@ -386,24 +423,65 @@ fn AccountPanel() -> impl IntoView {
             ctx.poll_account();
         });
     };
-    let password_input =
-        move |signal: RwSignal<String>, placeholder: &'static str, autocomplete: &'static str| {
-            view! {
-                <input
-                    class="text"
-                    type="password"
-                    placeholder=placeholder
-                    autocomplete=autocomplete
-                    prop:value=move || signal.get()
-                    on:input=move |ev| signal.set(event_target_value(&ev))
-                    on:keydown=move |ev: KeyboardEvent| {
-                        if ev.key() == "Enter" {
-                            change_password()
-                        }
-                    }
-                />
-            }
+
+    // Recuperar una contraseña olvidada (sin sesión): se pide un código por correo.
+    let forgot = RwSignal::new(false);
+    let code_sent = RwSignal::new(false);
+    let code = RwSignal::new(String::new());
+    let send_code = move || {
+        let args = EmailArgs {
+            email: email.get_untracked(),
         };
+        if args.email.trim().is_empty() {
+            note.set(Some("Escribe tu correo.".into()));
+            return;
+        }
+        busy.set(true);
+        note.set(None);
+        spawn_local(async move {
+            let result = call::<_, String>("send_recovery", &args).await;
+            busy.set(false);
+            match result {
+                Ok(message) => {
+                    code_sent.set(true);
+                    note.set(Some(message));
+                }
+                Err(e) => note.set(Some(e)),
+            }
+        });
+    };
+    let reset_password = move || {
+        let args = ResetArgs {
+            email: email.get_untracked(),
+            code: code.get_untracked(),
+            password: new_password.get_untracked(),
+        };
+        if args.code.trim().is_empty() || args.password.is_empty() {
+            note.set(Some("Escribe el código y la contraseña nueva.".into()));
+            return;
+        }
+        if args.password != repeat.get_untracked() {
+            note.set(Some("Las contraseñas nuevas no coinciden.".into()));
+            return;
+        }
+        busy.set(true);
+        note.set(None);
+        spawn_local(async move {
+            let result = call::<_, String>("reset_password", &args).await;
+            busy.set(false);
+            match result {
+                Ok(message) => {
+                    clear_passwords();
+                    code.set(String::new());
+                    forgot.set(false);
+                    code_sent.set(false);
+                    note.set(Some(message));
+                }
+                Err(e) => note.set(Some(e)),
+            }
+            ctx.poll_account();
+        });
+    };
 
     // Respaldo en archivo (sin cuenta). `None` = el usuario canceló el diálogo.
     let backup = move |cmd: &'static str| {
@@ -468,7 +546,46 @@ fn AccountPanel() -> impl IntoView {
                                 <button class="chip" disabled=move || busy.get() on:click=move |_| login(true)>
                                     "Crear cuenta"
                                 </button>
+                                <button
+                                    class="chip"
+                                    on:click=move |_| {
+                                        clear_passwords();
+                                        code.set(String::new());
+                                        code_sent.set(false);
+                                        note.set(None);
+                                        forgot.update(|f| *f = !*f);
+                                    }
+                                >
+                                    "Olvidé mi contraseña"
+                                </button>
                             </div>
+                            <Show when=move || forgot.get()>
+                                <p class="hint">
+                                    "Escribe tu correo arriba y te enviaremos un código para crear una contraseña nueva."
+                                </p>
+                                <div class="buttons">
+                                    <button class="chip" disabled=move || busy.get() on:click=move |_| send_code()>
+                                        {move || if code_sent.get() { "Reenviar código" } else { "Enviar código" }}
+                                    </button>
+                                </div>
+                                <Show when=move || code_sent.get()>
+                                    <input
+                                        class="text"
+                                        inputmode="numeric"
+                                        placeholder="Código del correo"
+                                        autocomplete="one-time-code"
+                                        prop:value=move || code.get()
+                                        on:input=move |ev| code.set(event_target_value(&ev))
+                                    />
+                                    <PasswordInput value=new_password placeholder="Contraseña nueva" autocomplete="new-password" on_enter=Callback::new(move |_| reset_password()) />
+                                    <PasswordInput value=repeat placeholder="Repite la contraseña nueva" autocomplete="new-password" on_enter=Callback::new(move |_| reset_password()) />
+                                    <div class="buttons">
+                                        <button class="primary" disabled=move || busy.get() on:click=move |_| reset_password()>
+                                            "Guardar contraseña"
+                                        </button>
+                                    </div>
+                                </Show>
+                            </Show>
                         </div>
                         <p class="hint">{move || ctx.account.with(|a| a.message.clone())}</p>
                     }
@@ -489,9 +606,9 @@ fn AccountPanel() -> impl IntoView {
                 </div>
                 <Show when=move || changing.get()>
                     <div class="login">
-                        {password_input(current, "Contraseña actual", "current-password")}
-                        {password_input(new_password, "Contraseña nueva", "new-password")}
-                        {password_input(repeat, "Repite la contraseña nueva", "new-password")}
+                        <PasswordInput value=current placeholder="Contraseña actual" autocomplete="current-password" on_enter=Callback::new(move |_| change_password()) />
+                        <PasswordInput value=new_password placeholder="Contraseña nueva" autocomplete="new-password" on_enter=Callback::new(move |_| change_password()) />
+                        <PasswordInput value=repeat placeholder="Repite la contraseña nueva" autocomplete="new-password" on_enter=Callback::new(move |_| change_password()) />
                         <div class="buttons">
                             <button class="primary" disabled=move || busy.get() on:click=move |_| change_password()>
                                 "Guardar contraseña"

@@ -17,6 +17,11 @@ const PAGE: usize = 500;
 /// Mensaje cuando el correo o la contraseña no corresponden.
 const WRONG_CREDENTIALS: &str = "Correo o contraseña incorrectos.";
 
+/// Largo mínimo de contraseña que acepta el proyecto de Supabase.
+const MIN_PASSWORD: usize = 6;
+
+const WEAK_PASSWORD: &str = "La contraseña es muy débil (usa al menos 6 caracteres).";
+
 /// Margen para refrescar la sesión antes de que venza.
 const REFRESH_MARGIN_S: i64 = 120;
 
@@ -116,13 +121,43 @@ impl Supabase {
             }
             e => e,
         })?;
+        self.set_password(&session, new)?;
+        Ok(session)
+    }
+
+    /// Pide el código para recuperar la contraseña; llega por correo. El servidor responde
+    /// igual exista o no la cuenta.
+    pub fn send_recovery(&self, email: &str) -> Result<(), SyncError> {
+        self.auth_post("recover", &json!({ "email": email.trim() }))?;
+        Ok(())
+    }
+
+    /// Cambia una contraseña olvidada con el código del correo y devuelve la sesión iniciada.
+    ///
+    /// El código se gasta al comprobarlo, así que el largo mínimo se revisa antes.
+    pub fn reset_password(&self, email: &str, code: &str, new: &str) -> Result<Session, SyncError> {
+        if new.chars().count() < MIN_PASSWORD {
+            return Err(SyncError::Rejected(WEAK_PASSWORD.to_owned()));
+        }
+        let body = json!({ "type": "recovery", "email": email.trim(), "token": code.trim() });
+        let session = session_from(self.auth_post("verify", &body)?)?;
+        self.set_password(&session, new).map_err(|e| match e {
+            SyncError::Rejected(m) | SyncError::Auth(m) => SyncError::Rejected(format!(
+                "{m} Pide un código nuevo para intentarlo otra vez."
+            )),
+            e => e,
+        })?;
+        Ok(session)
+    }
+
+    fn set_password(&self, session: &Session, new: &str) -> Result<(), SyncError> {
         self.agent
             .put(&format!("{}/auth/v1/user", self.url))
             .set("apikey", &self.key)
             .set("Authorization", &format!("Bearer {}", session.access_token))
             .send_json(json!({ "password": new }))
             .map_err(|e| map_error(e, true))?;
-        Ok(session)
+        Ok(())
     }
 
     /// Cierra la sesión en el servidor (si falla, da igual: localmente se olvida igual).
@@ -352,7 +387,8 @@ fn map_error(error: ureq::Error, auth: bool) -> SyncError {
                     Some("Ya existe una cuenta con ese correo. Usa «Entrar».")
                 }
                 "same_password" => Some("La contraseña nueva debe ser distinta de la actual."),
-                "weak_password" => Some("La contraseña es muy débil (usa al menos 6 caracteres)."),
+                "otp_expired" => Some("El código no es válido o ya venció. Pide uno nuevo."),
+                "weak_password" => Some(WEAK_PASSWORD),
                 "email_address_invalid" | "validation_failed" => Some("El correo no es válido."),
                 "over_email_send_rate_limit" | "over_request_rate_limit" => {
                     Some("Demasiados intentos seguidos. Espera un rato y vuelve a intentar.")
@@ -494,6 +530,74 @@ mod tests {
             1,
             "no debe intentar cambiarla"
         );
+    }
+
+    #[test]
+    fn recovery_sends_the_email() {
+        let (url, server) = fake_server(vec![(200, "{}")]);
+        Supabase::new(&url, "k").send_recovery(" a@b.cl ").unwrap();
+        let seen = server.join().unwrap();
+        assert!(seen[0].0.starts_with("POST /auth/v1/recover"));
+        assert_eq!(seen[0].2, r#"{"email":"a@b.cl"}"#);
+    }
+
+    #[test]
+    fn reset_password_verifies_the_code_and_signs_in() {
+        let (url, server) = fake_server(vec![(200, TOKEN), (200, "{}")]);
+        let session = Supabase::new(&url, "k")
+            .reset_password("a@b.cl", " 123456 ", "nueva1")
+            .unwrap();
+        assert_eq!(session.access_token, "nuevo");
+
+        let seen = server.join().unwrap();
+        assert!(seen[0].0.starts_with("POST /auth/v1/verify"));
+        let body: Value = serde_json::from_str(&seen[0].2).unwrap();
+        assert_eq!(body["type"], "recovery");
+        assert_eq!(body["email"], "a@b.cl");
+        assert_eq!(body["token"], "123456");
+        assert!(seen[1].0.starts_with("PUT /auth/v1/user"));
+        assert_eq!(seen[1].1, "Bearer nuevo");
+        assert_eq!(seen[1].2, r#"{"password":"nueva1"}"#);
+    }
+
+    #[test]
+    fn bad_recovery_code_changes_nothing() {
+        let (url, server) = fake_server(vec![(403, r#"{"error_code":"otp_expired","msg":"x"}"#)]);
+        let error = Supabase::new(&url, "k")
+            .reset_password("a@b.cl", "000000", "nueva1")
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "El código no es válido o ya venció. Pide uno nuevo."
+        );
+        assert_eq!(server.join().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn short_password_does_not_spend_the_code() {
+        let (url, server) = fake_server(vec![]);
+        let error = Supabase::new(&url, "k")
+            .reset_password("a@b.cl", "123456", "corta")
+            .unwrap_err();
+        assert_eq!(error.to_string(), WEAK_PASSWORD);
+        assert!(server.join().unwrap().is_empty());
+    }
+
+    #[test]
+    fn rejected_new_password_asks_for_a_new_code() {
+        let (url, server) = fake_server(vec![
+            (200, TOKEN),
+            (422, r#"{"error_code":"same_password","msg":"x"}"#),
+        ]);
+        let error = Supabase::new(&url, "k")
+            .reset_password("a@b.cl", "123456", "igual1")
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .ends_with("Pide un código nuevo para intentarlo otra vez.")
+        );
+        server.join().unwrap();
     }
 
     #[test]

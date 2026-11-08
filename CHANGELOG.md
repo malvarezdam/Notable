@@ -8,6 +8,7 @@ Todos los cambios importantes de Notable. El formato sigue
 
 ### Agregado
 - **Cambiar contraseña** desde el panel de cuenta (pide la contraseña actual).
+- **Recuperar una contraseña olvidada** con un código enviado por correo, antes de entrar.
 
 ## [1.0.0] - 2026-11-07
 
